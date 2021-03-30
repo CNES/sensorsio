@@ -2,15 +2,12 @@
 sensorsio
 =========
 
-
-Add a short description here!
-
+sensorsio provides convenient functions to load Sentinel2 and Pléiades data into numpy and xarray.
 
 Description
 ===========
 
-A longer description of your project goes here...
-
+TODO
 
 .. _pyscaffold-notes:
 

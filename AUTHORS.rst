@@ -2,4 +2,4 @@
 Contributors
 ============
 
-* Julien Michel <julien.michel@orfeo-toolbox.org>
+* Julien Michel <julien.michel@cesbio.cnes.fr>
