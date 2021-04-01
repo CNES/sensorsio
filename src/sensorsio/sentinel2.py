@@ -4,7 +4,7 @@
 
 from enum import Enum
 import dateutil
-from typing import List
+from typing import List, Tuple
 import glob
 import os
 import numpy as np
@@ -21,13 +21,16 @@ class Sentinel2:
     """
     Class for Sentinel2 bands information
     """     
-    def __init__(self, product_dir):
+    def __init__(self, product_dir, offsets:Tuple[float]=None):
         """
         Constructor
         """
         # Store product DIR
         self.product_dir = os.path.normpath(product_dir)
         self.product_name = os.path.basename(self.product_dir)
+
+        # Store offsets
+        self.offsets = offsets
 
         # Get
         self.satellite = Sentinel2.Satellite(self.product_name[0:10])
@@ -218,8 +221,70 @@ class Sentinel2:
             raise FileNotFoundError(f"Could not find mask {mask.value} of resolution {resolution.value} in product directory {self.product_dir}")
         return p[0]
 
-    def read(bands:List[Sentinel2.Band],
-             roi=None,
-             band_type:Sentinel2.BandType = Sentinel2.FRE,
-             masks:List[Sentinel2.MASKS]=[Sentinel2.CLM],
-             
+    def read_bands(self,
+                   bands:List[Band],
+                   crs: str=None,
+                   resolution:float = 10,
+                   roi=None,
+                   band_type:BandType = FRE,
+                   algorithm=rio.enums.Resampling.cubic,
+                   dtype=np.float32,
+                   scale:float=10000):
+        """
+        TODO
+        """
+        # Read full img if roi is None
+        if roi is None:
+            roi = self.bounds
+        # Check if we need resampling or not
+        need_warped_vrt = (self.offsets is not None)
+        # If we change projection
+        if crs is not None and crs != self.crs:
+            need_warped_vrt=True
+        # If we change resolution
+        has_10m = False
+        has_20m = False
+        has_60m = False
+        for b in bands:
+            if b in Sentinel2.GROUP_10M:
+                has_10m = True
+            if b in Sentinel2.GROUP_20M:
+                has_20m = True
+            if b in Sentinel2.GROUP_60M:
+                has_60m = True
+        # Check if we need to resample some bands
+        if has_10m and resolution != 10.:
+            need_warped_vrt = True
+        if has_20m and resolution != 20.:
+            need_warped_vrt = True
+        if has_60m and resolution != 60.:
+            need_warped_vrt = True
+
+        if need_warped_vrt:
+            datasets = [
+                utils.create_warped_vrt(
+                    self.build_band_path(band, band_type),
+                    resolution,
+                    dst_crs=crs,
+                    nodata=-10000,
+                    src_nodata=-10000,
+                    resampling=algorithm)
+            for band in bands]
+            
+        else:
+            datasets = [rio.open(self.build_band_path(band, band_type),'r') for band in bands]
+
+        arr = utils.read_as_numpy(datasets, roi, dtype = dtype)
+
+        # Close datasets
+        for d in datasets:
+            d.close()
+
+        # Scale data if needed
+        if scale is not None:
+            nodata_mask = arr==-10000
+            arr = arr/scale
+            arr[nodata_mask]=np.nan
+
+        # Strip the useless dimension
+        return arr[:,0,...]
