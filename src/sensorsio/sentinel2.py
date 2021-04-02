@@ -4,7 +4,7 @@
 
 from enum import Enum
 import dateutil
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import glob
 import os
 import numpy as np
@@ -19,11 +19,14 @@ This module contains Sentinel2 (L2A MAJA) related functions
 
 class Sentinel2:
     """
-    Class for Sentinel2 bands information
+    Class for Sentinel2 L2A (MAJA format) product reading
     """     
-    def __init__(self, product_dir, offsets:Tuple[float]=None):
+    def __init__(self, product_dir:str, offsets:Tuple[float]=None):
         """
         Constructor
+
+        :param product_dir: Path to product directory
+        :param offsets: Shifts applied to image orgin (as computed by StackReg for instance)
         """
         # Store product DIR
         self.product_dir = os.path.normpath(product_dir)
@@ -223,68 +226,34 @@ class Sentinel2:
 
     def read_bands(self,
                    bands:List[Band],
+                   band_type:BandType = FRE,
+                   scale:float=10000,
                    crs: str=None,
                    resolution:float = 10,
-                   roi=None,
-                   band_type:BandType = FRE,
+                   offsets:Tuple[float,float]=None,
+                   region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
+                   no_data_value:float=np.nan,
+                   bounds:rio.coords.BoundingBox=None,
                    algorithm=rio.enums.Resampling.cubic,
-                   dtype=np.float32,
-                   scale:float=10000):
+                   dtype:np.dtype=np.float32) -> np.ndarray:
         """
         TODO
         """
-        # Read full img if roi is None
-        if roi is None:
-            roi = self.bounds
-        # Check if we need resampling or not
-        need_warped_vrt = (self.offsets is not None)
-        # If we change projection
-        if crs is not None and crs != self.crs:
-            need_warped_vrt=True
-        # If we change resolution
-        has_10m = False
-        has_20m = False
-        has_60m = False
-        for b in bands:
-            if b in Sentinel2.GROUP_10M:
-                has_10m = True
-            if b in Sentinel2.GROUP_20M:
-                has_20m = True
-            if b in Sentinel2.GROUP_60M:
-                has_60m = True
-        # Check if we need to resample some bands
-        if has_10m and resolution != 10.:
-            need_warped_vrt = True
-        if has_20m and resolution != 20.:
-            need_warped_vrt = True
-        if has_60m and resolution != 60.:
-            need_warped_vrt = True
+        img_files = [self.build_band_path(b, band_type) for b in bands]
 
-        if need_warped_vrt:
-            datasets = [
-                utils.create_warped_vrt(
-                    self.build_band_path(band, band_type),
-                    resolution,
-                    dst_crs=crs,
-                    nodata=-10000,
-                    src_nodata=-10000,
-                    resampling=algorithm)
-            for band in bands]
-            
-        else:
-            datasets = [rio.open(self.build_band_path(band, band_type),'r') for band in bands]
+        np_arr =  utils.read_as_numpy(img_files,
+                                    crs=crs,
+                                    resolution=resolution,
+                                    offsets=self.offsets,
+                                    region=region,
+                                    output_no_data_value = no_data_value,
+                                    input_no_data_value = -10000,
+                                    bounds = bounds,
+                                    algorithm = algorithm,
+                                    separate=True,
+                                    dtype = dtype,
+                                    scale = scale)
 
-        arr = utils.read_as_numpy(datasets, roi, dtype = dtype)
-
-        # Close datasets
-        for d in datasets:
-            d.close()
-
-        # Scale data if needed
-        if scale is not None:
-            nodata_mask = arr==-10000
-            arr = arr/scale
-            arr[nodata_mask]=np.nan
-
-        # Strip the useless dimension
-        return arr[:,0,...]
+        # Skip first dimension
+        return np_arr[0,...]
+        

@@ -6,14 +6,15 @@
 This module contains utilities function
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import math
 import numpy as np
 from rasterio.enums import Resampling
 from rasterio.coords import BoundingBox
 from rasterio.vrt import WarpedVRT
 from rasterio.windows import Window
-from rasterio import open as rio_open
+from rasterio.warp import transform_bounds
+import rasterio as rio
 from affine import Affine
 
 def rgb_render(data: np.ndarray,
@@ -122,14 +123,20 @@ def create_warped_vrt(
 
     :return: A WarpedVRT object
     """
-    with rio_open(filename) as src:
-        target_bounds = src.bounds
+
+    with rio.open(filename) as src:
+        target_bounds = None
         target_crs = src.crs
         if dst_crs is not None:
             target_crs = dst_crs
         if dst_bounds is not None:
             target_bounds = dst_bounds
-
+        else:
+            if target_crs != src.crs:
+                target_bounds = transform_bounds(src.crs, dst_crs, *src.bounds)
+            else:
+                target_bounds = src.bounds
+                
         src_transform = src.transform
         if shifts is not None:
             src_res = src_transform[0]
@@ -226,40 +233,93 @@ def bb_common(imgs: List[str], snap: float = 20, crs: str = None):
             crs_box = rio.warp.transform_bounds(d.crs, crs, *box)
             boxes.append(crs_box)
     # Intersect all boxes
-    box = utils.bb_intersect(boxes)
+    box = bb_intersect(boxes)
     # Snap to grid
-    box = utils.bb_snap(box, align=snap)
+    box = bb_snap(box, align=snap)
     return box, crs
 
-
-def read_as_numpy(
-        vrts: List[WarpedVRT],
-        region: BoundingBox,
-        dtype: np.dtype = np.float32,
-        separate=False) -> np.ndarray:
+def read_as_numpy(img_files:List[str],
+                  crs: str=None,
+                  resolution:float = 10,
+                  offsets:Tuple[float,float]=None,
+                  region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
+                  input_no_data_value:float=None,
+                  output_no_data_value:float=np.nan,
+                  bounds:rio.coords.BoundingBox=None,
+                  algorithm=rio.enums.Resampling.cubic,
+                  separate:bool=False,
+                  dtype=np.float32,
+                  scale:float=None) -> np.ndarray:
     """
-    Read a stack of VRTs as a numpy nd_array
-
     :param vrts: A list of WarpedVRT objects to stack
-    :param region: The region to read as a BoundingBox object
+    :param region: The region to read as a BoundingBox object or a list of pixel coords (
     :param dtype: dtype of the output Tensor
     :param separate: If True, each WarpedVRT is considered to offer a single band
+    
+    
+    TODO
+    """            
+    # Check if we need resampling or not
+    need_warped_vrt = (offsets is not None)
+    # If we change image bounds
+    for f in img_files:
+        with rio.open(f) as ds:
+            if bounds is not None and ds.bounds != bounds:
+                need_warped_vrt=True
+            # If we change projection
+            if crs is not None and crs != ds.crs:
+                need_warped_vrt=True
+            if ds.transform[0] != resolution:
+                need_warped_vrt=True
 
-    :return: An array of shape [nb_vrts,nb_bands,w,h].
-             If separate is True, shape is [1,nb_bands*nb_vrts,w, h]
-    """
+    # If warped vrts are needed, create them
+    if need_warped_vrt:
+        datasets = [
+            create_warped_vrt(
+                f,
+                resolution,
+                dst_bounds=bounds,
+                dst_crs=crs,
+                nodata=input_no_data_value,
+                src_nodata=input_no_data_value,
+                resampling=algorithm)
+        for f in img_files]
+            
+    else:
+        datasets = [rio.open(f,'r') for f in img_files]
+
+    # Read full img if region is None
+    if region is None:
+        region = datasets[0].bounds
+
     # Convert region to window
-    windows = [Window((region[0] - ds.bounds[0]) / ds.res[0],
-                      (region[1] - ds.bounds[1]) / ds.res[1],
-                      (region[2] - region[0]) / ds.res[0],
-                      (region[3] - region[1]) / ds.res[1]) for ds in vrts]
+    if isinstance(region,BoundingBox):
+        windows = [Window((region[0] - ds.bounds[0]) / ds.res[0],
+                          (region[1] - ds.bounds[1]) / ds.res[1],
+                          (region[2] - region[0]) / ds.res[0],
+                          (region[3] - region[1]) / ds.res[1]) for ds in datasets]
+    else:
+        windows = [Window(region[0],region[1],
+                          region[2] - region[0],
+                          region[3] - region[1]) for ds in datasets]
+        
     axis = 0
     # if vrts are bands of the same image
     if separate:
         axis = 1
 
     np_stack = np.stack([ds.read(window=w)
-                         for (ds, w) in zip(vrts, windows)], axis=axis)
+                         for (ds, w) in zip(datasets, windows)], axis=axis)
+
+    # Close datasets
+    for d in datasets:
+        d.close()
+
+    # If scaling is required, apply it
+    if scale is not None:
+        np_stack_mask = (np_stack==input_no_data_value)
+        np_stack = np_stack/scale
+        np_stack[np_stack_mask] = output_no_data_value
 
     # Convert to float before casting to final dtype
     np_stack = np_stack.astype(dtype)
