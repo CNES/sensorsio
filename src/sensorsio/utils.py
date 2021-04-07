@@ -252,7 +252,7 @@ def read_as_numpy(img_files:List[str],
                   scale:float=None) -> np.ndarray:
     """
     :param vrts: A list of WarpedVRT objects to stack
-    :param region: The region to read as a BoundingBox object or a list of pixel coords (
+    :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
     :param dtype: dtype of the output Tensor
     :param separate: If True, each WarpedVRT is considered to offer a single band
     
@@ -287,6 +287,9 @@ def read_as_numpy(img_files:List[str],
             
     else:
         datasets = [rio.open(f,'r') for f in img_files]
+
+    # Retrieve actual crs
+    crs = datasets[0].crs
 
     # Read full img if region is None
     if region is None:
@@ -323,4 +326,11 @@ def read_as_numpy(img_files:List[str],
 
     # Convert to float before casting to final dtype
     np_stack = np_stack.astype(dtype)
-    return np_stack
+    xcoords = np.arange(ds.bounds[0]+windows[0].col_off*resolution,
+                        ds.bounds[0]+(windows[0].col_off+windows[0].width)*resolution, resolution)
+    ycoords = np.arange(ds.bounds[3]-windows[0].row_off*resolution,
+                        ds.bounds[3]-(windows[0].row_off+windows[0].height)*resolution,
+                        -resolution)
+    
+
+    return np_stack, xcoords, ycoords, crs
