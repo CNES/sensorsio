@@ -52,7 +52,22 @@ See [this notebook](https://gitlab.cnes.fr/cesbio/sensorsio/-/blob/master/notebo
 
 ## Installation
 
-TODO
+### Cloner les sources
+Depuis le gitlab du CESBIO:
+```bash
+$ git clone http://osr-cesbio.ups-tlse.fr/gitlab_cesbio/michelj/sensorsio.git
+```
+Depuis le gitlab du CNES:
+```bash
+$ git clone git@gitlab.cnes.fr:cesbio/sensorsio.git
+```
+
+### Installer le paquet avec pip
+Passer le chemin du répertoire cloné à ```pîp install```:
+```bash
+$ pip install sensorsio
+```
+
 
 ## Notes
 
