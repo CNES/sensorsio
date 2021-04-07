@@ -21,7 +21,7 @@ class Sentinel2:
     """
     Class for Sentinel2 L2A (MAJA format) product reading
     """     
-    def __init__(self, product_dir:str, offsets:Tuple[float]=None):
+    def __init__(self, product_dir:str, offsets:Tuple[float, float]=None):
         """
         Constructor
 
@@ -39,7 +39,7 @@ class Sentinel2:
         self.satellite = Sentinel2.Satellite(self.product_name[0:10])
                 
         # Get tile
-        self.tile = self.product_name[35:41]
+        self.tile = self.product_name[36:41]
 
         # Get acquisition date
         self.date = dateutil.parser.parse(self.product_name[11:19])
@@ -107,7 +107,6 @@ class Sentinel2:
     EDG = Mask.EDG
     MG2 = Mask.MG2
     
-    
     # Enum class for mask resolutions
     class MaskRes(Enum):
         R1 = 'R1'
@@ -115,12 +114,13 @@ class Sentinel2:
 
     # Aliases for resolution
     R1 = MaskRes.R1
-    R2 = MaskRes.R2
+    R2 = MaskRes.R2    
 
     # Band groups
     GROUP_10M = [B2, B3, B4, B8]
     GROUP_20M = [B5, B6, B7, B8A, B11, B12]
     GROUP_60M = [B9, B10]
+    ALL_MASKS = [SAT, CLM, EDG, MG2]
 
     # Enum for BandType
     class BandType(Enum):
@@ -224,36 +224,126 @@ class Sentinel2:
             raise FileNotFoundError(f"Could not find mask {mask.value} of resolution {resolution.value} in product directory {self.product_dir}")
         return p[0]
 
-    def read_bands(self,
-                   bands:List[Band],
-                   band_type:BandType = FRE,
-                   scale:float=10000,
-                   crs: str=None,
-                   resolution:float = 10,
-                   offsets:Tuple[float,float]=None,
-                   region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
-                   no_data_value:float=np.nan,
-                   bounds:rio.coords.BoundingBox=None,
-                   algorithm=rio.enums.Resampling.cubic,
-                   dtype:np.dtype=np.float32) -> np.ndarray:
+    def read_as_numpy(self,
+                      bands:List[Band],
+                      band_type:BandType = FRE,
+                      masks:List[Mask]=ALL_MASKS,
+                      mask_res:MaskRes = MaskRes.R1,
+                      scale:float=10000,
+                      crs: str=None,
+                      resolution:float = 10,
+                      region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
+                      no_data_value:float=np.nan,
+                      bounds:rio.coords.BoundingBox=None,
+                      algorithm=rio.enums.Resampling.cubic,
+                      dtype:np.dtype=np.float32) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
         """
-        TODO
+        Read bands from Sentinel2 products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
+        dataset might be used.
+
+        :param bands: The list of bands to read
+        :param band_type: The band type (FRE or SRE)
+        :param scale: Scale factor applied to reflectances (r_s = r / scale). No scaling if set to None
+        :param crs: Projection in which to read the image (will use WarpedVRT)
+        :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
+        :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
+        :param no_data_value: How no-data will appear in output ndarray
+        :param bounds: New bounds for datasets. If different from image bands, will use a WarpedVRT
+        :param algorithm: The resampling algorithm to be used if WarpedVRT
+        :param dtype: dtype of the output Tensor
+        :return: The image pixels as a np.ndarray of shape [bands, width, height],
+                 The masks pixels as a np.ndarray of shape [masks, width, height],
+                 The x coords as a np.ndarray of shape [width],
+                 the y coords as a np.ndarray of shape [height],
+                 the crs as a string
         """
         img_files = [self.build_band_path(b, band_type) for b in bands]
-
-        np_arr =  utils.read_as_numpy(img_files,
-                                    crs=crs,
-                                    resolution=resolution,
-                                    offsets=self.offsets,
-                                    region=region,
-                                    output_no_data_value = no_data_value,
-                                    input_no_data_value = -10000,
-                                    bounds = bounds,
-                                    algorithm = algorithm,
-                                    separate=True,
-                                    dtype = dtype,
-                                    scale = scale)
+        np_arr, xcoords, ycoords, crs =  utils.read_as_numpy(img_files,
+                                                             crs=crs,
+                                                             resolution=resolution,
+                                                             offsets=self.offsets,
+                                                             region=region,
+                                                             output_no_data_value = no_data_value,
+                                                             input_no_data_value = -10000,
+                                                             bounds = bounds,
+                                                             algorithm = algorithm,
+                                                             separate=True,
+                                                             dtype = dtype,
+                                                             scale = scale)
 
         # Skip first dimension
-        return np_arr[0,...]
+        np_arr = np_arr[0,...]
+
+        # Read masks if needed
+        np_arr_msk=None
+        if len(masks)!=0:
+            mask_files = [self.build_mask_path(m, mask_res) for m in masks]
+            np_arr_msk, _, _, _ =  utils.read_as_numpy(mask_files,
+                                                    crs=crs,
+                                                    resolution=resolution,
+                                                    offsets=self.offsets,
+                                                    region=region,
+                                                    output_no_data_value = no_data_value,
+                                                    input_no_data_value = -10000,
+                                                    bounds = bounds,
+                                                    algorithm = rio.enums.Resampling.nearest,
+                                                    separate=True,
+                                                    dtype = np.uint8,
+                                                    scale = None)
+            # Skip first dimension
+            np_arr_msk = np_arr_msk[0,...]
         
+        # Return plain numpy array
+        return np_arr, np_arr_msk, xcoords, ycoords, crs
+
+    def read_as_xarray(self,
+                       bands:List[Band],
+                       band_type:BandType = FRE,
+                       masks:List[Mask]=ALL_MASKS,
+                       mask_res:MaskRes = MaskRes.R1,
+                       scale:float=10000,
+                       crs: str=None,
+                       resolution:float = 10,
+                       region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
+                       no_data_value:float=np.nan,
+                       bounds:rio.coords.BoundingBox=None,
+                       algorithm=rio.enums.Resampling.cubic,
+                       dtype:np.dtype=np.float32) -> xr.Dataset:
+        """
+        Read bands from Sentinel2 products as a numpy
+
+        ndarray. Depending on the parameters, an internal WarpedVRT
+        dataset might be used.
+
+        :param bands: The list of bands to read
+        :param band_type: The band type (FRE or SRE)
+        :param scale: Scale factor applied to reflectances (r_s = r / scale). No scaling if set to None
+        :param crs: Projection in which to read the image (will use WarpedVRT)
+        :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
+        :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
+        :param no_data_value: How no-data will appear in output ndarray
+        :param bounds: New bounds for datasets. If different from image bands, will use a WarpedVRT
+        :param algorithm: The resampling algorithm to be used if WarpedVRT
+        :param dtype: dtype of the output Tensor
+        :return: The image pixels as a np.ndarray of shape [bands, width, height]
+        """
+        np_arr, np_arr_msk, xcoords, ycoords, crs = self.read_as_numpy(bands, band_type,
+                                                                      masks, mask_res,
+                                                                      scale, crs,
+                                                                      resolution, region,
+                                                                      no_data_value, bounds,
+                                                                      algorithm, dtype)    
+
+        vars = {}
+        for i in range(len(bands)):
+            vars[bands[i].value]=(["t", "y", "x"] , np_arr[None,i,...])
+            for i in range(len(masks)):
+                vars[masks[i].value]=(["t", "y", "x"] , np_arr_msk[None,i,...])
+            
+            
+        xarr = xr.Dataset(vars,
+                          coords={'t' : [self.date], 'x' : xcoords, 'y':ycoords},
+                          attrs= {'tile' : self.tile,
+                                  'type' : band_type.value,
+                                  'crs' : crs})
+        return xarr

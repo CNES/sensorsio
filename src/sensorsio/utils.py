@@ -327,9 +327,9 @@ def read_as_numpy(img_files:List[str],
     # Convert to float before casting to final dtype
     np_stack = np_stack.astype(dtype)
     xcoords = np.arange(ds.bounds[0]+windows[0].col_off*resolution,
-                        ds.bounds[0]+(windows[0].col_off+windows[0].width)*resolution, resolution)
+                        ds.bounds[0]+(windows[0].col_off+np_stack.shape[3])*resolution, resolution)
     ycoords = np.arange(ds.bounds[3]-windows[0].row_off*resolution,
-                        ds.bounds[3]-(windows[0].row_off+windows[0].height)*resolution,
+                        ds.bounds[3]-(windows[0].row_off+np_stack.shape[2])*resolution,
                         -resolution)
     
 
