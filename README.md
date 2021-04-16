@@ -37,10 +37,12 @@ Attributes:
     crs:      EPSG:32631
 ```
 
-
 ```sensorsio``` provides a lot of flexibility and allows a lot more.
 
-For Sentinel2, it offers:
+## Available drivers
+### Sentinel2 L2A (Theia)
+
+For** Sentinel2 L2A** products from Theia, it offers:
 *  Convenient attributes like day of year or sensor id
 *  Selective read of desired bands and masks
 *  On-the-fly resampling of 20m bands to 10m while reading
@@ -48,7 +50,20 @@ For Sentinel2, it offers:
 *  Image and geographical spatial subsetting
 *  Supports registration offsets computed by StackReg
 
-See [this notebook](https://gitlab.cnes.fr/cesbio/sensorsio/-/blob/master/notebooks/sentinel2.ipynb) for an in depth review of the capabilties with Sentinel2 class.
+See [this notebook](https://gitlab.cnes.fr/cesbio/sensorsio/-/blob/master/notebooks/sentinel2.ipynb) for an in depth review of the capabilties with ```Sentinel2``` class.
+
+### Venus L2A (Theia)
+
+For **Venus L2A** products from Theia, it offers:
+*  Convenient attributes like day of year or sensor id
+*  Selective read of desired bands and masks
+*  On-the-fly resampling of 20m bands to 10m while reading
+*  On-the-fly projection to a different Coordinates Reference System while reading
+*  Image and geographical spatial subsetting
+*  Supports registration offsets computed by StackReg
+
+See [this notebook](https://gitlab.cnes.fr/cesbio/sensorsio/-/blob/master/notebooks/venus.ipynb) for an in depth review of the capabilties with ```Venus``` class.
+
 
 ## Installation
 
