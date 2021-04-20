@@ -207,31 +207,28 @@ def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
     top = align * np.ceil(bb[3] / align)
     return BoundingBox(left=left, bottom=bottom, right=right, top=top)
 
-def bb_common(imgs: List[str], snap: float = 20, crs: str = None):
+def bb_common(bounds: List[BoundingBox], src_crs:List[str], snap: float = 20, target_crs: str = None):
     """
     Compute the common bounding box between a set of images.
     All bounding boxes are converted to crs before intersection.
     If crs is not set, crs from first image in list is used.
     After intersection, box is snapped to integer multiple of the snap parameter.
 
-    param imgs: List of path to image files
+    param bounds: List of bounding boxes
+    param src_crs: List of correponding crs
     param snap: Box is snaped to interger multiple of this parameter
-    param crs: Common CRS for all boxes. If None, crs from first image is used
+    param target_crs: Common CRS for all boxes. If None, first src_crs
 
     returns: A tuple of box, crs
     """
-    boxes = []
-    # Loop on images
-    for img in imgs:
-        # Open with rasterio
-        with rio.open(img) as d:
-            # Get crs from first image if None
-            if crs is None:
-                crs = d.crs
-            box = d.bounds
-            # Transform bounds to common crs
-            crs_box = rio.warp.transform_bounds(d.crs, crs, *box)
-            boxes.append(crs_box)
+    assert(len(bounds)==len(src_crs))
+    boxes=[]
+    for box, crs in zip(bounds, src_crs):
+        if target_crs is None:
+            target_crs=crs
+        crs_box = rio.warp.transform_bounds(crs, target_crs, *box)
+        boxes.append(crs_box)
+            
     # Intersect all boxes
     box = bb_intersect(boxes)
     # Snap to grid
