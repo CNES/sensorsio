@@ -42,7 +42,7 @@ Attributes:
 ## Available drivers
 ### Sentinel2 L2A (Theia)
 
-For** Sentinel2 L2A** products from Theia, it offers:
+For **Sentinel2 L2A** products from Theia, it offers:
 *  Convenient attributes like day of year or sensor id
 *  Selective read of desired bands and masks
 *  On-the-fly resampling of 20m bands to 10m while reading
@@ -50,17 +50,17 @@ For** Sentinel2 L2A** products from Theia, it offers:
 *  Image and geographical spatial subsetting
 *  Supports registration offsets computed by StackReg
 
-See [this notebook](https://gitlab.cnes.fr/cesbio/sensorsio/-/blob/master/notebooks/sentinel2.ipynb) for an in depth review of the capabilties with ```Sentinel2``` class.
+See [this notebook](notebooks/sentinel2.ipynb) for an in depth review of the capabilties with ```Sentinel2``` class.
 
 ### Pleiades (PHRTiling format)
 
-For **Pleiades** Products calibrated by [[PHRTiling][https://gitlab.cnes.fr/cesbio/phrtiling]), it offers:
+For **Pleiades** Products calibrated by [PHRTiling](https://gitlab.cnes.fr/cesbio/phrtiling), it offers:
 *  Convenient attributes like day of year or sensor id
 *  Selective read of desired XS bands
 *  On-the-fly projection to a different Coordinates Reference System while reading
 *  Image and geographical spatial subsetting
 
-See [this notebook]((https://gitlab.cnes.fr/cesbio/sensorsio/-/blob/master/notebooks/venus.ipynb) for an illustration of the capabilities of the ```Pleiades``` class.
+See [this notebook](notebooks/venus.ipynb) for an illustration of the capabilities of the ```Pleiades``` class.
 
 ### Venus L2A (Theia)
 
@@ -70,7 +70,7 @@ For **Venus L2A** products from Theia, it offers:
 *  On-the-fly projection to a different Coordinates Reference System while reading
 *  Image and geographical spatial subsetting
 
-See [this notebook](https://gitlab.cnes.fr/cesbio/sensorsio/-/blob/master/notebooks/venus.ipynb) for an in depth review of the capabilties with ```Venus``` class.
+See [this notebook](notebooks/venus.ipynb) for an in depth review of the capabilties with ```Venus``` class.
 
 
 ## Installation
