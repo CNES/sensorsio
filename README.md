@@ -60,7 +60,7 @@ For **Pleiades** Products calibrated by [PHRTiling](https://gitlab.cnes.fr/cesbi
 *  On-the-fly projection to a different Coordinates Reference System while reading
 *  Image and geographical spatial subsetting
 
-See [this notebook]((notebooks/venus.ipynb) for an illustration of the capabilities of the ```Pleiades``` class.
+See [this notebook](notebooks/venus.ipynb) for an illustration of the capabilities of the ```Pleiades``` class.
 
 ### Venus L2A (Theia)
 
