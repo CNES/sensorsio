@@ -2,7 +2,11 @@
 
 `sensorsio` is a python library provides convenient functions to load Sentinel2 and other sensors data into `numpy` and `xarray`.
 
-Using it is as simple as:
+## Quickstart
+
+### Reading a Sentinel2 product
+
+Reading a **Sentinel2 L2A** product is as simple as:
 
 ```python
 # Import the sentinel 2 module
@@ -36,9 +40,60 @@ Attributes:
     type:     FRE
     crs:      EPSG:32631
 ```
+### Jointly reading multiple sensors on a common grid
 
-```sensorsio``` provides a lot of flexibility and allows a lot more.
+It is also very simple to reproject several images from different sensors to a common grid for manipulation:
 
+```python
+# Create a Sentinel2 dataset
+s2_ds = sentinel2.Sentinel2(s2)
+# Create a Pleiades dataset
+phr_ds = pleiades.Pleiades(phr_xs)
+# Find common grid
+box, crs = utils.bb_common([s2_ds.bounds, phr_ds.bounds],[s2_ds.crs, phr_ds.crs],snap=10)
+# Warp Sentinel2 on this grid:
+s2_arr, _, _, _, _ = s2_ds.read_as_numpy(sentinel2.Sentinel2.GROUP_10M,
+                                         resolution=10,
+                                         crs=crs,
+                                         bounds=box)
+# Warp Pléiades on this grid:
+phr_arr, _, _, _ = phr_ds.read_as_numpy(pleiades.Pleiades.GROUP_XS,
+                                        resolution=10,
+                                        crs=crs,
+                                        bounds=box,
+                                        algorithm=rio.enums.Resampling.cubic)
+print(phr_arr.shape, s2_arr.shape)
+```
+```
+((4, 5774, 2082), (4, 5774, 2082))
+```
+
+This is demonstrated in more details in [this notebook](notebooks/joint_sensors.ipynb).
+
+### Visualisation made easy
+
+`sensorsio` also contains utilities to prepare `numpy` arrays for visualisation with `matplotlib`:
+
+```python
+# Prepare for rendering (band extraction and scaling)
+dmin = np.array([0., 0., 0.])
+dmax = np.array([0.2,0.2,0.2])
+s2_rgb, dmin, dmax = utils.rgb_render(s2_arr, bands=[2,1,0], 
+                                      dmin=dmin, 
+                                      dmax=dmax)
+phr_rgb, dmin, max = utils.rgb_render(phr_arr, bands=[2,1,0], 
+                                      dmin=dmin, 
+                                      dmax=dmax)
+ # Call matplotlib
+ fig, axes = plt.subplots(ncols=2, figsize=(int(25*phr_rgb.shape[1]/phr_rgb.shape[0]), 25))
+axes[0].imshow(s2_rgb)
+axes[0].set_title(str(s2_ds.satellite.value))
+axes[1].imshow(phr_rgb)
+axes[1].set_title(str(phr_ds.satellite.value))
+fig.show()
+ ```
+ 
+ 
 ## Available drivers
 ### Sentinel2 L2A (Theia)
 
