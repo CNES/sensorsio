@@ -32,8 +32,6 @@ class Pleiades:
         self.product_file = os.path.normpath(product_file)
         self.product_name = os.path.basename(self.product_file)
 
-        print(self.product_file)
-
         # Store offsets
         self.offsets = offsets
 
