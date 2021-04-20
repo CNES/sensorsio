@@ -49,6 +49,7 @@ class Sentinel2:
         with rio.open(self.build_band_path(Sentinel2.B2)) as ds:
         # Get bounds
             self.bounds  = ds.bounds
+            self.transform = ds.transform
         # Get crs
             self.crs = ds.crs
 
