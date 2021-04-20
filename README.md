@@ -42,7 +42,7 @@ Attributes:
 ## Available drivers
 ### Sentinel2 L2A (Theia)
 
-For** Sentinel2 L2A** products from Theia, it offers:
+For **Sentinel2 L2A** products from Theia, it offers:
 *  Convenient attributes like day of year or sensor id
 *  Selective read of desired bands and masks
 *  On-the-fly resampling of 20m bands to 10m while reading
