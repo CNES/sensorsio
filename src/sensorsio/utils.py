@@ -279,7 +279,8 @@ def read_as_numpy(img_files:List[str],
                 dst_crs=crs,
                 nodata=input_no_data_value,
                 src_nodata=input_no_data_value,
-                resampling=algorithm)
+                resampling=algorithm,
+                shifts=offsets)
         for f in img_files]
             
     else:
