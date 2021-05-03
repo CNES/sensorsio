@@ -141,7 +141,7 @@ $ git clone git@gitlab.cnes.fr:cesbio/sensorsio.git
 ```
 
 ### Installer le paquet avec pip
-Pass the path to cloned repository to ```pîp install```:
+Pass the path to cloned repository to ```pip install```:
 ```bash
 $ pip install sensorsio
 ```
