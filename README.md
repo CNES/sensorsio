@@ -145,7 +145,12 @@ Pass the path to cloned repository to ```pip install```:
 ```bash
 $ pip install sensorsio
 ```
+## TODO list
 
+- [ ] Add Water Vapor and AOT bands to sentinel2 driver
+- [ ] Add solar and satellite angles to sentinel2 driver
+- [ ] Add relative orbit number computation to sentinel2 driver
+- [ ] Add footprint polygon to sentinel2 driver (intersection of MGRS tile and orbit swath)
 
 ## Notes
 
