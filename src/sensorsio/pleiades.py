@@ -105,7 +105,6 @@ class Pleiades:
                                                 half_kernel_width) for b in bands])
 
     def read_as_numpy(self,
-                      bands:List[Band],
                       scale:float=1000,
                       crs: str=None,
                       resolution:float = 2,
@@ -118,7 +117,6 @@ class Pleiades:
         Read bands from Pléiades XS product as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
         
-        :param bands: The list of bands to read
         :param scale: Scale factor applied to reflectances (r_s = r / scale). No scaling if set to None
         :param crs: Projection in which to read the image (will use WarpedVRT)
         :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
@@ -154,7 +152,6 @@ class Pleiades:
 
 
     def read_as_xarray(self,
-                      bands:List[Band],
                       scale:float=1000,
                       crs: str=None,
                       resolution:float = 2,
@@ -167,7 +164,6 @@ class Pleiades:
         Read bands from Pléiades XS product as xarray Dataset. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
         
-        :param bands: The list of bands to read
         :param scale: Scale factor applied to reflectances (r_s = r / scale). No scaling if set to None
         :param crs: Projection in which to read the image (will use WarpedVRT)
         :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
