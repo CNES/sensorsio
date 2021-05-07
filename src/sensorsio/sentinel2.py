@@ -2,36 +2,84 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales
 
+import warnings
 from enum import Enum
 import dateutil
 from typing import List, Tuple, Union
 import glob
 import os
 import numpy as np
+import pandas as pd
+import geopandas as gpd
 import xarray as xr
+import xml.etree.ElementTree as ET
 import rasterio as rio
+from shapely import geometry
 from sensorsio import utils
 
+
+warnings.filterwarnings("ignore", category=RuntimeWarning, module='geopandas')
 
 """
 This module contains Sentinel2 (L2A MAJA) related functions
 """
 
+def find_tile_orbit_pairs(bounds:rio.coords.BoundingBox, crs='epsg:4326'):
+    """
+    From bounding box and CRS, return a list of pairs of MGRS tiles
+    and Sentinel2 relative orbits that covers the area, in the form of a dataframe.
+    """
+    # Convert bounds to 4326
+    wgs84_bounds = rio.warp.transform_bounds(crs, 4326, *bounds)
+
+    # Convert bounds to polygon
+    aoi = geometry.Polygon([[wgs84_bounds[0], wgs84_bounds[1]],
+                            [wgs84_bounds[0], wgs84_bounds[3]],
+                            [wgs84_bounds[2], wgs84_bounds[3]],
+                            [wgs84_bounds[2], wgs84_bounds[1]]])
+    mgrs_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'../../data/sentinel2/mgrs_tiles.gpkg'))
+    orbits_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'../../data/sentinel2/orbits.gpkg'))
+    intersections=[]
+    for mgrs_id, mgrs_row in mgrs_df.iterrows():
+        if aoi.intersects(mgrs_row.geometry):
+            inter_mgrs_aoi = aoi.intersection(mgrs_row.geometry)
+            mgrs_coverage = inter_mgrs_aoi.area/aoi.area
+            orbits=[]
+            for orbit_id,orbit_row in orbits_df.iterrows():
+                # Last test is to exclude weird duplicates (malformed gpkg ?)
+                if orbit_row.geometry.intersects(inter_mgrs_aoi) and not orbit_row.orbit_number in orbits:
+                    orbits.append(orbit_row.orbit_number)
+                    inter_mgrs_aoi_orbit = inter_mgrs_aoi.intersection(orbit_row.geometry)
+                    mgrs_orbit_coverage = inter_mgrs_aoi_orbit.area/aoi.area
+                    intersections.append((mgrs_row.Name,orbit_row.orbit_number,mgrs_coverage,mgrs_orbit_coverage))
+    # Build a standard pandas df from tuples
+    labels=['tile_id','relative_orbit_number','tile_coverage','tile_and_orbit_coverage']
+    df = pd.DataFrame.from_records(intersections,columns=labels)
+    return df
+
+
 class Sentinel2:
     """
     Class for Sentinel2 L2A (MAJA format) product reading
     """     
-    def __init__(self, product_dir:str, offsets:Tuple[float, float]=None):
+    def __init__(self, product_dir:str, offsets:Tuple[float, float]=None, parse_xml=True):
         """
         Constructor
 
         :param product_dir: Path to product directory
         :param offsets: Shifts applied to image orgin (as computed by StackReg for instance)
+        :param parse_xml: If True (default), parse additional information from xml metadata file
         """
         # Store product DIR
         self.product_dir = os.path.normpath(product_dir)
         self.product_name = os.path.basename(self.product_dir)
 
+        # Look for xml file
+        p = glob.glob(f"{self.product_dir}/*_MTD_ALL.xml")
+        if len(p) == 0:
+            raise FileNotFoundError(f"Could not find metadata XML file for product {self.product_dir}")
+        self.xml_file = p[0]
+        
         # Store offsets
         self.offsets = offsets
 
@@ -53,9 +101,43 @@ class Sentinel2:
         # Get crs
             self.crs = ds.crs
 
+        # Parse xml file if requested
+        if parse_xml:
+            self.parse_xml()
+            
     def __repr__(self):
         return f'{self.satellite.value}, {self.date}, {self.tile}'
 
+    def parse_xml(self):
+        """
+        Parse metadata file
+        """
+        with open(self.xml_file) as xml_file:
+            tree = ET.parse(xml_file)
+            root = tree.getroot()
+            # Parse cloud cover
+            quality_node = root.find(".//*[@name='CloudPercent']")
+            if quality_node is not None:
+                self.cloud_cover = int(quality_node.text)
+            # Parse orbit number
+            orbit_node = root.find(".//ORBIT_NUMBER")
+            if orbit_node is not None:
+                self.orbit = int(orbit_node.text)
+                self.relative_orbit = self.compute_relative_orbit_number(self.orbit)
+
+                 
+    def compute_relative_orbit_number(self, orbit):
+        """
+        Compute relative orbit number from absolute orbit and sensor id
+        """
+        phase = None
+        if self.satellite is Sentinel2.Satellite.S2A:
+            phase = 2
+        else:
+            phase = -27
+        return ((orbit+phase)%143)+1
+                            
+                 
     # Enum class for sensor
     class Satellite(Enum):
         S2A = 'SENTINEL2A'
