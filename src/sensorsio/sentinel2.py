@@ -37,8 +37,8 @@ def find_tile_orbit_pairs(bounds:rio.coords.BoundingBox, crs='epsg:4326'):
                             [wgs84_bounds[0], wgs84_bounds[3]],
                             [wgs84_bounds[2], wgs84_bounds[3]],
                             [wgs84_bounds[2], wgs84_bounds[1]]])
-    mgrs_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'../../data/sentinel2/mgrs_tiles.gpkg'))
-    orbits_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'../../data/sentinel2/orbits.gpkg'))
+    mgrs_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/mgrs_tiles.gpkg'))
+    orbits_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/orbits.gpkg'))
     intersections=[]
     for mgrs_id, mgrs_row in mgrs_df.iterrows():
         if aoi.intersects(mgrs_row.geometry):
@@ -75,11 +75,8 @@ class Sentinel2:
         self.product_name = os.path.basename(self.product_dir)
 
         # Look for xml file
-        p = glob.glob(f"{self.product_dir}/*_MTD_ALL.xml")
-        if len(p) == 0:
-            raise FileNotFoundError(f"Could not find metadata XML file for product {self.product_dir}")
-        self.xml_file = p[0]
-        
+        self.xml_file = self.build_xml_path()
+                
         # Store offsets
         self.offsets = offsets
 
@@ -123,7 +120,7 @@ class Sentinel2:
             orbit_node = root.find(".//ORBIT_NUMBER")
             if orbit_node is not None:
                 self.orbit = int(orbit_node.text)
-                self.relative_orbit = self.compute_relative_orbit_number(self.orbit)
+                self.relative_orbit_number = self.compute_relative_orbit_number(self.orbit)
 
                  
     def compute_relative_orbit_number(self, orbit):
@@ -272,7 +269,8 @@ class Sentinel2:
         # Raise
         if len(p) == 0:
             raise FileNotFoundError(f"Could not find root XML file in product directory {self.product_dir}")
-
+        return p[0]
+    
     def build_band_path(
         self,
         band: Band,
