@@ -10,6 +10,7 @@ import os
 import numpy as np
 import xarray as xr
 import rasterio as rio
+import geopandas as gpd
 from sensorsio import utils
 
 
@@ -17,9 +18,17 @@ from sensorsio import utils
 This module contains Venus (L2A MAJA) related functions
 """
 
+def get_theia_sites():
+    """
+    Return a dataframe with tiles produced by Theia
+    """
+    return gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/venus/theia_venus.gpkg')).set_index('Name')
+
+
+
 class Venus:
     """
-    CClass for Venus L2A (MAJA format) product reading
+    Class for Venus L2A (MAJA format) product reading
     """     
     def __init__(self, product_dir, offsets:Tuple[float]=None):
         """

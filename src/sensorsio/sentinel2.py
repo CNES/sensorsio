@@ -24,6 +24,13 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module='geopandas')
 This module contains Sentinel2 (L2A MAJA) related functions
 """
 
+def get_theia_tiles():
+    """
+    Return a dataframe with tiles produced by Theia
+    """
+    return gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/theia_s2.gpkg')).set_index('Name')
+
+
 def find_tile_orbit_pairs(bounds:rio.coords.BoundingBox, crs='epsg:4326'):
     """
     From bounding box and CRS, return a list of pairs of MGRS tiles
