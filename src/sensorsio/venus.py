@@ -194,6 +194,7 @@ class Venus:
         # Raise
         if len(p) == 0:
             raise FileNotFoundError(f"Could not find root XML file in product directory {self.product_dir}")
+        return p[0]
 
     def build_band_path(
         self,
