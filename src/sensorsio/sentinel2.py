@@ -44,7 +44,7 @@ def find_tile_orbit_pairs(bounds:rio.coords.BoundingBox, crs='epsg:4326'):
                             [wgs84_bounds[0], wgs84_bounds[3]],
                             [wgs84_bounds[2], wgs84_bounds[3]],
                             [wgs84_bounds[2], wgs84_bounds[1]]])
-    mgrs_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/mgrs_tiles.gpkg'))
+    mgrs_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/mgrs_tiles.shp'))
     orbits_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/orbits.gpkg'))
     intersections=[]
     for mgrs_id, mgrs_row in mgrs_df.iterrows():
