@@ -194,20 +194,29 @@ class Sentinel2:
     EDG = Mask.EDG
     MG2 = Mask.MG2
     
-    # Enum class for mask resolutions
-    class MaskRes(Enum):
+    # Enum class for mask and Atmos resolutions
+    class Res(Enum):
         R1 = 'R1'
         R2 = 'R2'
 
     # Aliases for resolution
-    R1 = MaskRes.R1
-    R2 = MaskRes.R2    
+    R1 = Res.R1
+    R2 = Res.R2
+    
+    # Atmosphere bands
+    class Atmos(Enum):
+        ATB = 'ATB'
+    
+    # Aliases for atmosphere bands 
+    ATB = Atmos.ATB
+  
 
     # Band groups
     GROUP_10M = [B2, B3, B4, B8]
     GROUP_20M = [B5, B6, B7, B8A, B11, B12]
     GROUP_60M = [B9, B10]
     ALL_MASKS = [SAT, CLM, EDG, MG2]
+    ATMOS = [ATB]
 
     # Enum for BandType
     class BandType(Enum):
@@ -298,7 +307,7 @@ class Sentinel2:
     def build_mask_path(
         self,
         mask: Mask,
-        resolution: MaskRes = R1) -> str:
+        resolution: Res = R1) -> str:
         """
         Build path to a band for product
         :param band: The band to build path for as a Sentinel2.Band enum value
@@ -311,12 +320,30 @@ class Sentinel2:
         if len(p) == 0:
             raise FileNotFoundError(f"Could not find mask {mask.value} of resolution {resolution.value} in product directory {self.product_dir}")
         return p[0]
+    
+    def build_atmos_path( ####################
+        self,
+        resolution: Res = R1) -> str:
+        """
+        Build path to a file containing WVC and AOT bands for product
+        :param atmos: The band type to build path for Sentinel 2 atmosphere bands
+        :param resolution: chosen resolution 
+
+        :return: The path to the ATB file
+        """
+        p = glob.glob(f"{self.product_dir}/*ATB_{resolution.value}.tif")
+        # Raise
+        if len(p) == 0:
+            raise FileNotFoundError(f"Could not find ATB of resolution {resolution.value} in product directory {self.product_dir}")
+        return p[0]
+
 
     def read_as_numpy(self,
                       bands:List[Band],
                       band_type:BandType = FRE,
                       masks:List[Mask]=ALL_MASKS,
-                      mask_res:MaskRes = MaskRes.R1,
+                      readAtmos:bool = False,
+                      res:Res = Res.R1,
                       scale:float=10000,
                       crs: str=None,
                       resolution:float = 10,
@@ -341,6 +368,8 @@ class Sentinel2:
         :param dtype: dtype of the output Tensor
         :return: The image pixels as a np.ndarray of shape [bands, width, height],
                  The masks pixels as a np.ndarray of shape [masks, width, height],
+                 The WVC band
+                 The AOT band
                  The x coords as a np.ndarray of shape [width],
                  the y coords as a np.ndarray of shape [height],
                  the crs as a string
@@ -365,7 +394,7 @@ class Sentinel2:
         # Read masks if needed
         np_arr_msk=None
         if len(masks)!=0:
-            mask_files = [self.build_mask_path(m, mask_res) for m in masks]
+            mask_files = [self.build_mask_path(m, res) for m in masks]
             np_arr_msk, _, _, _ =  utils.read_as_numpy(mask_files,
                                                     crs=crs,
                                                     resolution=resolution,
@@ -381,14 +410,34 @@ class Sentinel2:
             # Skip first dimension
             np_arr_msk = np_arr_msk[0,...]
         
+        # Read atmosphere band
+        np_arr_atm=None
+        if readAtmos:
+            atmos_file = [self.build_atmos_path(res)]
+            np_arr_atm, _, _, _ = utils.read_as_numpy(atmos_file,
+                                                    crs=crs,
+                                                    resolution=resolution,
+                                                    offsets=self.offsets,
+                                                    region=region,
+                                                    output_no_data_value = no_data_value,
+                                                    input_no_data_value = -10000,
+                                                    bounds = bounds,
+                                                    algorithm = algorithm,
+                                                    separate=True,
+                                                    dtype = np.float,
+                                                    scale = None)
+            # Normalize
+            np_arr_atm = np_arr_atm[:,0,...]
+            np_arr_atm[1] = np_arr_atm[1]/200
+        
         # Return plain numpy array
-        return np_arr, np_arr_msk, xcoords, ycoords, crs
+        return np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs
 
     def read_as_xarray(self,
                        bands:List[Band],
                        band_type:BandType = FRE,
                        masks:List[Mask]=ALL_MASKS,
-                       mask_res:MaskRes = MaskRes.R1,
+                       res:Res = Res.R1,
                        scale:float=10000,
                        crs: str=None,
                        resolution:float = 10,
@@ -416,7 +465,7 @@ class Sentinel2:
         :return: The image pixels as a np.ndarray of shape [bands, width, height]
         """
         np_arr, np_arr_msk, xcoords, ycoords, crs = self.read_as_numpy(bands, band_type,
-                                                                      masks, mask_res,
+                                                                      masks, res,
                                                                       scale, crs,
                                                                       resolution, region,
                                                                       no_data_value, bounds,
