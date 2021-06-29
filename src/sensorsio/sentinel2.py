@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales
 
-from memory_profiler import profile
-
 import warnings
 from enum import Enum
 from collections import namedtuple
