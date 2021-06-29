@@ -441,22 +441,27 @@ class Sentinel2:
                  the y coords as a np.ndarray of shape [height],
                  the crs as a string
         """
-        img_files = [self.build_band_path(b, band_type) for b in bands]
-        np_arr, xcoords, ycoords, crs =  utils.read_as_numpy(img_files,
-                                                             crs=crs,
-                                                             resolution=resolution,
-                                                             offsets=self.offsets,
-                                                             region=region,
-                                                             output_no_data_value = no_data_value,
-                                                             input_no_data_value = -10000,
-                                                             bounds = bounds,
-                                                             algorithm = algorithm,
-                                                             separate=True,
-                                                             dtype = dtype,
-                                                             scale = scale)
+        np_arr = None
+        xcoords = None
+        ycoords = None
+        crs = None
+        if len(bands):
+            img_files = [self.build_band_path(b, band_type) for b in bands]
+            np_arr, xcoords, ycoords, crs =  utils.read_as_numpy(img_files,
+                                                                 crs=crs,
+                                                                 resolution=resolution,
+                                                                 offsets=self.offsets,
+                                                                 region=region,
+                                                                 output_no_data_value = no_data_value,
+                                                                 input_no_data_value = -10000,
+                                                                 bounds = bounds,
+                                                                 algorithm = algorithm,
+                                                                 separate=True,
+                                                                 dtype = dtype,
+                                                                 scale = scale)
 
-        # Skip first dimension
-        np_arr = np_arr[0,...]
+            # Skip first dimension
+            np_arr = np_arr[0,...]
 
         # Read masks if needed
         np_arr_msk=None
@@ -505,6 +510,7 @@ class Sentinel2:
                        band_type:BandType = FRE,
                        masks:List[Mask]=ALL_MASKS,
                        res:Res = Res.R1,
+                       readAtmos:bool = False,
                        scale:float=10000,
                        crs: str=None,
                        resolution:float = 10,
@@ -531,18 +537,21 @@ class Sentinel2:
         :param dtype: dtype of the output Tensor
         :return: The image pixels as a np.ndarray of shape [bands, width, height]
         """
-        np_arr, np_arr_msk, xcoords, ycoords, crs = self.read_as_numpy(bands, band_type,
-                                                                      masks, res,
-                                                                      scale, crs,
-                                                                      resolution, region,
-                                                                      no_data_value, bounds,
-                                                                      algorithm, dtype)    
+        np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs = self.read_as_numpy(bands, band_type,
+                                                                                   masks, readAtmos, res,
+                                                                                   scale, crs,
+                                                                                   resolution, region,
+                                                                                   no_data_value, bounds,
+                                                                                   algorithm, dtype)
 
         vars = {}
         for i in range(len(bands)):
             vars[bands[i].value]=(["t", "y", "x"] , np_arr[None,i,...])
             for i in range(len(masks)):
                 vars[masks[i].value]=(["t", "y", "x"] , np_arr_msk[None,i,...])
+        if np_arr_atm is not None:
+            vars['WCV']=(["t", "y", "x"] , np_arr_atm[None,0,...])
+            vars['AOT']=(["t", "y", "x"] , np_arr_atm[None,1,...])
             
             
         xarr = xr.Dataset(vars,
