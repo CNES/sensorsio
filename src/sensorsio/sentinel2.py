@@ -152,14 +152,15 @@ class Sentinel2:
             # Parse incidence angles
             self.incidence_angles = {}
             for b in root.find('.//Angles_Grids_List/Viewing_Incidence_Angles_Grids_List'):
-                band_key = self.Band(b.attrib['band_id'])
-                band_dict = {}
-                for d in b.findall('Viewing_Incidence_Angles_Grids'):
-                    det_key=self.Detector(int(d.attrib['detector_id']))
-                    zen = parse_angular_grid_node(d.find('Zenith'))
-                    az = parse_angular_grid_node(d.find('Azimuth'))
-                    band_dict[det_key]=Angles(zen, az)
-                self.incidence_angles[band_key]=band_dict
+                if b.attrib['band_id'] != 'B1':
+                    band_key = self.Band(b.attrib['band_id'])
+                    band_dict = {}
+                    for d in b.findall('Viewing_Incidence_Angles_Grids'):
+                        det_key=self.Detector(int(d.attrib['detector_id']))
+                        zen = parse_angular_grid_node(d.find('Zenith'))
+                        az = parse_angular_grid_node(d.find('Azimuth'))
+                        band_dict[det_key]=Angles(zen, az)
+                    self.incidence_angles[band_key]=band_dict
                                                                     
             
     def compute_relative_orbit_number(self, orbit):
