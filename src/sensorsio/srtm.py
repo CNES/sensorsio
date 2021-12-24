@@ -11,12 +11,13 @@ import rasterio as rio
 from rasterio.merge import merge
 
 
-@dataclass
 class BoundingBox:
-    lonmin: float
-    latmin: float
-    lonmax: float
-    latmax: float
+    def __init__(self, lonmin: float, latmin: float, lonmax: float,
+                 latmax: float):
+        self.lonmin = min(lonmax, lonmin)
+        self.latmin = min(latmax, latmin)
+        self.lonmax = max(lonmax, lonmin)
+        self.latmax = max(latmax, latmin)
 
 
 @dataclass
