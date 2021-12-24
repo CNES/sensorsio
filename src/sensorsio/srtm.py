@@ -8,6 +8,7 @@ from typing import List, Tuple
 import geopandas as gpd
 import os
 import rasterio as rio
+from rasterio.merge import merge
 
 
 @dataclass
