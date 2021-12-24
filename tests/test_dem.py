@@ -50,3 +50,43 @@ def test_generate_dem():
         ds.write(dem.elevation, 1)
         ds.write(dem.slope, 2)
         ds.write(dem.aspect, 3)
+
+
+def test_dem_on_s2_tile():
+    from rasterio.warp import Resampling, reproject
+    RESOLUTION = 10
+    s2_ds = sentinel2.Sentinel2(
+        '/datalake/S2-L2A-THEIA/31TDH/2019/05/31/SENTINEL2B_20190531-105916-927_L2A_T31TDH_C_V2-2/'
+    )
+    xrds = s2_ds.read_as_xarray([sentinel2.Sentinel2.B12],
+                                resolution=RESOLUTION)
+
+    dst_dem = np.zeros((3, xrds.sizes['x'], xrds.sizes['y']))
+    dem_handler = srtm.SRTM()
+    s2_dem = dem_handler.get_dem_for_mgrs_tile(s2_ds.tile)
+    dst_dem, dst_dem_transform = reproject(s2_dem.as_stack(),
+                                           destination=dst_dem,
+                                           src_transform=s2_dem.transform,
+                                           src_crs=s2_dem.crs,
+                                           dst_transform=s2_ds.transform,
+                                           dst_crs=s2_ds.crs,
+                                           resampling=Resampling.cubic)
+    s2_dem = srtm.DEM(dst_dem[0, :, :].astype(np.int16),
+                      dst_dem[1, :, :].astype(np.int16),
+                      dst_dem[2, :, :].astype(np.int16), s2_ds.crs,
+                      dst_dem_transform)
+
+    with rio.open("/tmp/s2_dem.tif",
+                  'w',
+                  driver='GTiff',
+                  height=s2_dem.elevation.shape[0],
+                  width=s2_dem.elevation.shape[1],
+                  count=3,
+                  nodata=-32768.0,
+                  dtype=s2_dem.elevation.dtype,
+                  compress='lzw',
+                  crs=s2_dem.crs,
+                  transform=s2_dem.transform) as ds:
+        ds.write(s2_dem.elevation, 1)
+        ds.write(s2_dem.slope, 2)
+        ds.write(s2_dem.aspect, 3)
