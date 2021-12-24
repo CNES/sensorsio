@@ -66,7 +66,7 @@ def srtm_tiles_from_mgrs_tile(tile: str) -> List[SRTMTileId]:
     return srtm_tiles_from_bbox(mgrs_bbox(tile))
 
 
-def mgrs_transform(tile: str):
+def mgrs_transform(tile: str) -> rio.Affine:
     ul, ur, ll, lr, _ = mgrs_polygon(tile).exterior.coords
     transformer = Transformer.from_crs('+proj=latlong',
                                        crs_for_mgrs_tile(tile))
@@ -87,7 +87,7 @@ class DEM:
     slope: np.ndarray
     aspect: np.ndarray
     crs: Optional[str]
-    transform: Optional[rio.transform.Affine]
+    transform: Optional[rio.Affine]
 
     def as_stack(self):
         return np.stack([self.elevation, self.slope, self.aspect], axis=0)
@@ -134,9 +134,8 @@ of the SRTM tiles.
         srtm_tiles = srtm_tiles_from_bbox(bbox)
         return self.get_dem_from_tiles(srtm_tiles)
 
-    def __build_hgt(
-            self, tiles: List[SRTMTileId]
-    ) -> Tuple[np.ndarray, rio.transform.Affine]:
+    def __build_hgt(self,
+                    tiles: List[SRTMTileId]) -> Tuple[np.ndarray, rio.Affine]:
         file_names = [
             f"{self.base_dir}/{srtm_id_to_name(t)}.hgt" for t in tiles
         ]
