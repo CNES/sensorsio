@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 
-from dataclasses import dataclass
-import numpy as np
-from typing import List, Tuple
-import geopandas as gpd
 import os
+from dataclasses import dataclass
+from typing import List, Tuple
+
+import geopandas as gpd
+import numpy as np
 import rasterio as rio
 from rasterio.merge import merge
 

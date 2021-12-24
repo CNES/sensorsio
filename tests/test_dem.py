@@ -1,6 +1,6 @@
 import pytest
-import src.sensorsio.srtm as srtm
 import rasterio as rio
+import src.sensorsio.srtm as srtm
 
 
 def test_srtm_id_to_name():
