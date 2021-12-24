@@ -60,7 +60,11 @@ class DEM:
     elevation: np.ndarray
     slope: np.ndarray
     aspect: np.ndarray
-    transform: rio.transform.Affine
+    crs: Optional[str]
+    transform: Optional[rio.transform.Affine]
+
+    def as_stack(self):
+        return np.stack([self.elevation, self.slope, self.aspect], axis=0)
 
 
 @dataclass(frozen=True)
