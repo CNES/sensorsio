@@ -4,12 +4,14 @@
 
 import os
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
 import rasterio as rio
+from pyproj import CRS, Transformer
 from rasterio.merge import merge
+from shapely.geometry import Polygon
 
 
 class BoundingBox:
@@ -46,13 +48,37 @@ def srtm_tiles_from_bbox(bbox: BoundingBox) -> List[SRTMTileId]:
     ]
 
 
-def srtm_tiles_from_mgrs_tile(tile: str) -> List[SRTMTileId]:
+def mgrs_polygon(tile: str) -> Polygon:
     assert tile[0] != 'T'
     mgrs_df = gpd.read_file(
         os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      'data/sentinel2/mgrs_tiles.shp'))
-    bbox = BoundingBox(*mgrs_df[mgrs_df.Name == tile].iloc[0].geometry.bounds)
-    return srtm_tiles_from_bbox(bbox)
+    return mgrs_df[mgrs_df.Name == tile].iloc[0].geometry
+
+
+def mgrs_bbox(tile: str) -> BoundingBox:
+
+    poly = mgrs_polygon(tile)
+    return BoundingBox(*poly.bounds)
+
+
+def srtm_tiles_from_mgrs_tile(tile: str) -> List[SRTMTileId]:
+    return srtm_tiles_from_bbox(mgrs_bbox(tile))
+
+
+def mgrs_transform(tile: str):
+    ul, ur, ll, lr, _ = mgrs_polygon(tile).exterior.coords
+    transformer = Transformer.from_crs('+proj=latlong',
+                                       crs_for_mgrs_tile(tile))
+    x0, y0 = transformer.transform([ul[0]], [ul[1]])
+    return rio.Affine(10.0, 0.0, np.round(x0[0]), 0.0, -10.0, np.round(y0[0]))
+
+
+def crs_for_mgrs_tile(tile: str) -> CRS:
+    zone = int(tile[:2])
+    south = tile[2] < 'N'
+
+    return CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south})
 
 
 @dataclass(frozen=True)
