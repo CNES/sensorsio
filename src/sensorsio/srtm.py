@@ -71,9 +71,10 @@ class SRTM:
 
     def get_dem_from_tiles(self, tiles: List[SRTMTileId]) -> DEM:
         elevation, transform = self.build_hgt(tiles)
-        x, y = np.gradient(elevation)
-        slope = np.pi / 2. - np.arctan(np.sqrt(x * x + y * y))
-        aspect = np.arctan2(-x, y)
+        elevation = elevation[0, :, :]
+        x, y = np.gradient(elevation.astype(np.float16))
+        slope = np.degrees(np.pi / 2. - np.arctan(np.sqrt(x * x + y * y)))
+        aspect = np.degrees(np.arctan2(-x, y))
         return DEM(elevation, slope, aspect, transform)
 
     def get_dem_for_mgrs_tile(self, tile: str) -> DEM:
