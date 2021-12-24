@@ -1,12 +1,23 @@
+import numpy as np
 import pytest
 import rasterio as rio
 import src.sensorsio.srtm as srtm
+from src.sensorsio import sentinel2, utils
 
 
 def test_srtm_id_to_name():
     assert srtm.srtm_id_to_name(srtm.SRTMTileId(1, -2)) == "S02E001"
     assert srtm.srtm_id_to_name(srtm.SRTMTileId(-1, -2)) == "S02W001"
     assert srtm.srtm_id_to_name(srtm.SRTMTileId(-1, 12)) == "N12W001"
+
+
+def test_crs_from_mgrs():
+    assert srtm.crs_for_mgrs_tile('31TDH').to_authority() == ('EPSG', '32631')
+
+
+def test_mgrs_transform():
+    assert srtm.mgrs_transform('31TDH') == rio.Affine(10.0, 0.0, 399960.0, 0.0,
+                                                      -10.0, 4800000.0)
 
 
 def test_srtm_tiles_from_mgrs_tile():
@@ -35,7 +46,7 @@ def test_srtm_tiles_from_mgrs_tile():
 
 def test_generate_dem():
     dem_handler = srtm.SRTM()
-    dem = dem_handler.get_dem_for_mgrs_tile("31TCJ")
+    dem = dem_handler.get_dem_for_mgrs_tile("31TDH")
     with rio.open("/tmp/dem.tif",
                   'w',
                   driver='GTiff',
