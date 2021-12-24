@@ -1,8 +1,7 @@
 import numpy as np
-import pytest
 import rasterio as rio
 import src.sensorsio.srtm as srtm
-from src.sensorsio import sentinel2, utils
+from src.sensorsio import sentinel2
 
 
 def test_srtm_id_to_name():
@@ -67,8 +66,8 @@ def test_dem_on_s2_tile():
     from rasterio.warp import Resampling, reproject
     RESOLUTION = 10
     s2_ds = sentinel2.Sentinel2(
-        '/datalake/S2-L2A-THEIA/31TDH/2019/05/31/SENTINEL2B_20190531-105916-927_L2A_T31TDH_C_V2-2/'
-    )
+        '/datalake/S2-L2A-THEIA/31TDH/2019/05/31/'
+        'SENTINEL2B_20190531-105916-927_L2A_T31TDH_C_V2-2/')
     xrds = s2_ds.read_as_xarray([sentinel2.Sentinel2.B12],
                                 resolution=RESOLUTION)
 

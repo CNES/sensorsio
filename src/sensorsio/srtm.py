@@ -126,9 +126,9 @@ SRTM tiles.
         return self.get_dem_from_tiles(srtm_tiles)
 
     def get_dem_for_bbox(self, bbox: BoundingBox) -> DEM:
-        """Build a DEM (elevation, slope and aspect) for a bounding box with the
-union of the intersecting SRTM tiles. It keeps CRS and extent of the
-SRTM tiles.
+        """Build a DEM (elevation, slope and aspect) for a bounding box
+with the union of the intersecting SRTM tiles. It keeps CRS and extent
+of the SRTM tiles.
 
         """
         srtm_tiles = srtm_tiles_from_bbox(bbox)
