@@ -100,3 +100,40 @@ def test_dem_on_s2_tile():
         ds.write(s2_dem.elevation, 1)
         ds.write(s2_dem.slope, 2)
         ds.write(s2_dem.aspect, 3)
+
+
+def test_dem_on_mgrs_tile():
+    from rasterio.warp import Resampling, reproject
+    TILE = '31TDH'
+
+    mgrs_transform = srtm.mgrs_transform(TILE)
+    mgrs_crs = srtm.crs_for_mgrs_tile(TILE)
+    dst_dem = np.zeros((3, 10980, 10980))
+    dem_handler = srtm.SRTM()
+    s2_dem = dem_handler.get_dem_for_mgrs_tile(TILE)
+    dst_dem, dst_dem_transform = reproject(s2_dem.as_stack(),
+                                           destination=dst_dem,
+                                           src_transform=s2_dem.transform,
+                                           src_crs=s2_dem.crs,
+                                           dst_transform=mgrs_transform,
+                                           dst_crs=mgrs_crs,
+                                           resampling=Resampling.cubic)
+    s2_dem = srtm.DEM(dst_dem[0, :, :].astype(np.int16),
+                      dst_dem[1, :, :].astype(np.int16),
+                      dst_dem[2, :, :].astype(np.int16), mgrs_crs,
+                      dst_dem_transform)
+
+    with rio.open("/tmp/mgrs_dem.tif",
+                  'w',
+                  driver='GTiff',
+                  height=s2_dem.elevation.shape[0],
+                  width=s2_dem.elevation.shape[1],
+                  count=3,
+                  nodata=-32768.0,
+                  dtype=s2_dem.elevation.dtype,
+                  compress='lzw',
+                  crs=s2_dem.crs,
+                  transform=s2_dem.transform) as ds:
+        ds.write(s2_dem.elevation, 1)
+        ds.write(s2_dem.slope, 2)
+        ds.write(s2_dem.aspect, 3)
