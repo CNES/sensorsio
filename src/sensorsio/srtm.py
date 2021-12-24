@@ -71,22 +71,40 @@ class SRTM:
     base_dir: str = "/datalake/static_aux/MNT/SRTM_30_hgt"
 
     def get_dem_from_tiles(self, tiles: List[SRTMTileId]) -> DEM:
-        elevation, transform = self.build_hgt(tiles)
+        """Build a DEM (elevation, slope and aspect) for a list of (supposedly
+        adjacent) SRTM tiles. It keeps CRS and extent of the SRTM tiles.
+
+        """
+        elevation, transform = self.__build_hgt(tiles)
         elevation = elevation[0, :, :]
         x, y = np.gradient(elevation.astype(np.float16))
         slope = np.degrees(np.pi / 2. - np.arctan(np.sqrt(x * x + y * y)))
         aspect = np.degrees(np.arctan2(-x, y))
-        return DEM(elevation, slope, aspect, transform)
+        return DEM(elevation.astype(np.int16),
+                   slope.astype(np.int16),
+                   aspect.astype(np.int16),
+                   crs='+proj=latlong',
+                   transform=transform)
 
     def get_dem_for_mgrs_tile(self, tile: str) -> DEM:
+        """Build a DEM (elevation, slope and aspect) for an MGRS tile with the
+union of the intersecting SRTM tiles. It keeps CRS and extent of the
+SRTM tiles.
+
+        """
         srtm_tiles = srtm_tiles_from_mgrs_tile(tile)
         return self.get_dem_from_tiles(srtm_tiles)
 
     def get_dem_for_bbox(self, bbox: BoundingBox) -> DEM:
+        """Build a DEM (elevation, slope and aspect) for a bounding box with the
+union of the intersecting SRTM tiles. It keeps CRS and extent of the
+SRTM tiles.
+
+        """
         srtm_tiles = srtm_tiles_from_bbox(bbox)
         return self.get_dem_from_tiles(srtm_tiles)
 
-    def build_hgt(
+    def __build_hgt(
             self, tiles: List[SRTMTileId]
     ) -> Tuple[np.ndarray, rio.transform.Affine]:
         file_names = [
