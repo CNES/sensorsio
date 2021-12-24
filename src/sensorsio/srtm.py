@@ -87,5 +87,7 @@ class SRTM:
     def build_hgt(
             self, tiles: List[SRTMTileId]
     ) -> Tuple[np.ndarray, rio.transform.Affine]:
-        file_names = [f"{self.base_dir}/{t}.hgt" for t in tiles]
-        return rio.merge(file_names)  # type: ignore
+        file_names = [
+            f"{self.base_dir}/{srtm_id_to_name(t)}.hgt" for t in tiles
+        ]
+        return merge(file_names)  # type: ignore
