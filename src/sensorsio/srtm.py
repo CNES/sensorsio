@@ -15,6 +15,18 @@ from rasterio.merge import merge
 from rasterio.warp import Resampling, reproject
 from shapely.geometry import Polygon
 
+def compute_latlon_bbox_from_region(bounds: BoundingBox,
+                                    crs: str) -> BoundingBox:
+    ul_from = (bounds.left, bounds.top)
+    ur_from = (bounds.right, bounds.top)
+    ll_from = (bounds.left, bounds.bottom)
+    lr_from = (bounds.right, bounds.bottom)
+    x_from = [p[0] for p in [ul_from, ur_from, ll_from, lr_from]]
+    y_from = [p[1] for p in [ul_from, ur_from, ll_from, lr_from]]
+    transformer = Transformer.from_crs(crs, '+proj=latlong')
+    x_to, y_to = transformer.transform(x_from, y_from)
+    return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
+
 
 @dataclass(frozen=True)
 class SRTMTileId:
@@ -161,6 +173,67 @@ class SRTM:
                     tiles: List[SRTMTileId]) -> Tuple[np.ndarray, rio.Affine]:
         file_names = [f"{self.base_dir}/{t.name()}.hgt" for t in tiles]
         return merge(file_names)  # type: ignore
+
+    def read_as_numpy(
+        self,
+        crs: str,
+        resolution: float,
+        bounds: BoundingBox,
+        no_data_value: float = np.nan,
+        algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
+        dtype: np.dtype = np.float32
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+               str]:
+        assert bounds is not None
+        dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
+                                   -resolution, bounds.bottom)
+        dst_size_x = (bounds.right - bounds.left) // resolution
+        dst_size_y = (bounds.top - bounds.bottom) // resolution
+        dst_dem = np.zeros((3, dst_size_x, dst_size_y))
+        dem_handler = SRTM()
+        bbox = compute_latlon_bbox_from_region(bounds, crs)
+        srtm_dem = dem_handler.get_dem_for_bbox(bbox)
+        dst_dem, dst_dem_transform = reproject(
+            srtm_dem.as_stack(),
+            destination=dst_dem,
+            src_transform=srtm_dem.transform,
+            src_crs=srtm_dem.crs,
+            dst_transform=dst_transform,
+            dst_crs=crs,
+            resampling=algorithm)
+        np_arr_height = dst_dem[0, :, :].astype(dtype)
+        np_arr_slope = dst_dem[1, :, :].astype(dtype)
+        np_arr_aspect = dst_dem[2, :, :].astype(dtype)
+        xcoords = np.arange(bounds.left, bounds.right, resolution)
+        ycoords = np.arange(bounds.bottom, bounds.top, -resolution)
+        return (np_arr_height, np_arr_slope, np_arr_aspect, xcoords, ycoords,
+                crs)
+
+    def read_as_xarray(
+            self,
+            crs: str,
+            resolution: float,
+            bounds: BoundingBox,
+            no_data_value: float = np.nan,
+            algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
+            dtype: np.dtype = np.float32) -> xr.Dataset:
+        (np_arr_height, np_arr_slope, np_arr_aspect, xcoords, ycoords,
+         crs) = self.read_as_numpy(crs, resolution, bounds, no_data_value,
+                                   algorithm, dtype)
+        vars: Dict[str, Tuple[List[str], np.ndarray]] = {}
+        vars['height'] = (["y", "x"], np_arr_height[None, ...])
+        vars['slope'] = (["y", "x"], np_arr_slope[None, ...])
+        vars['aspect'] = (["y", "x"], np_arr_aspect[None, ...])
+        xarr = xr.Dataset(vars,
+                          coords={
+                              'x': xcoords,
+                              'y': ycoords
+                          },
+                          attrs={
+                              'crs': crs,
+                              'resolution': resolution
+                          })
+        return xarr
 
 
 def get_dem_mgrs_tile(tile: str) -> DEM:
