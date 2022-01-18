@@ -10,21 +10,10 @@ import geopandas as gpd
 import numpy as np
 import rasterio as rio
 from pyproj import CRS, Transformer
+from rasterio.coords import BoundingBox
 from rasterio.merge import merge
 from rasterio.warp import Resampling, reproject
 from shapely.geometry import Polygon
-
-
-class BoundingBox:
-    """
-    Class modeling a lat, long bounding box
-    """
-    def __init__(self, lonmin: float, latmin: float, lonmax: float,
-                 latmax: float):
-        self.lonmin = min(lonmax, lonmin)
-        self.latmin = min(latmax, latmin)
-        self.lonmax = max(lonmax, lonmin)
-        self.latmax = max(latmax, latmin)
 
 
 @dataclass(frozen=True)
@@ -44,13 +33,13 @@ class SRTMTileId:
 
 def srtm_tiles_from_bbox(bbox: BoundingBox) -> List[SRTMTileId]:
     """ Return a list of SRTMTileId intersecting a bounding box"""
-    latmin = int(np.floor(bbox.latmin))
-    latmax = int(np.floor(bbox.latmax))
-    lonmin = int(np.floor(bbox.lonmin))
-    lonmax = int(np.floor(bbox.lonmax))
+    bottom = int(np.floor(bbox.bottom))
+    top = int(np.floor(bbox.top))
+    left = int(np.floor(bbox.left))
+    right = int(np.floor(bbox.right))
     return [
-        SRTMTileId(lon, lat) for lat in range(latmin, latmax + 1)
-        for lon in range(lonmin, lonmax + 1)
+        SRTMTileId(lon, lat) for lat in range(bottom, top + 1)
+        for lon in range(left, right + 1)
     ]
 
 
