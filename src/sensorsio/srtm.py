@@ -2,18 +2,19 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 
-import os
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-import geopandas as gpd
 import numpy as np
 import rasterio as rio
-from pyproj import CRS, Transformer
+import xarray as xr
+from pyproj import Transformer
 from rasterio.coords import BoundingBox
 from rasterio.merge import merge
 from rasterio.warp import Resampling, reproject
-from shapely.geometry import Polygon
+
+import mgrs
+
 
 def compute_latlon_bbox_from_region(bounds: BoundingBox,
                                     crs: str) -> BoundingBox:
@@ -43,6 +44,11 @@ class SRTMTileId:
         return f"{northing}{lat}{easting}{lon}"
 
 
+def get_srtm_tiles_for_mgrs_tile(tile: str) -> List[SRTMTileId]:
+    """ Get the list of SRTM tiles intersecting a MGRS tile"""
+    return srtm_tiles_from_bbox(mgrs.get_bbox_mgrs_tile(tile))
+
+
 def srtm_tiles_from_bbox(bbox: BoundingBox) -> List[SRTMTileId]:
     """ Return a list of SRTMTileId intersecting a bounding box"""
     bottom = int(np.floor(bbox.bottom))
@@ -53,49 +59,6 @@ def srtm_tiles_from_bbox(bbox: BoundingBox) -> List[SRTMTileId]:
         SRTMTileId(lon, lat) for lat in range(bottom, top + 1)
         for lon in range(left, right + 1)
     ]
-
-
-def get_polygon_mgrs_tile(tile: str) -> Polygon:
-    """ Get the shapely.Polygon corresponding to a MGRS tile"""
-    assert tile[0] != 'T'
-    mgrs_df = gpd.read_file(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     'data/sentinel2/mgrs_tiles.shp'))
-    return mgrs_df[mgrs_df.Name == tile].iloc[0].geometry
-
-
-def get_bbox_mgrs_tile(tile: str) -> BoundingBox:
-    """ Get a bounding box in '+proj=latlong' for a MGRS tile"""
-    poly = get_polygon_mgrs_tile(tile)
-    return BoundingBox(*poly.bounds)
-
-
-def get_srtm_tiles_for_mgrs_tile(tile: str) -> List[SRTMTileId]:
-    """ Get the list of SRTM tiles intersecting a MGRS tile"""
-    return srtm_tiles_from_bbox(get_bbox_mgrs_tile(tile))
-
-
-def get_transform_mgrs_tile(tile: str) -> rio.Affine:
-    """ Get the rasterio.Affine transform for a MGRS tile in its own CRS"""
-    ul, ur, ll, lr, _ = get_polygon_mgrs_tile(tile).exterior.coords
-    transformer = Transformer.from_crs('+proj=latlong',
-                                       get_crs_mgrs_tile(tile))
-    x0, y0 = transformer.transform([ul[0]], [ul[1]])
-    return rio.Affine(10.0, 0.0, np.round(x0[0]), 0.0, -10.0, np.round(y0[0]))
-
-
-def get_crs_mgrs_tile(tile: str) -> CRS:
-    """Get the pyproj.CRS for a MGRS tile.
-
-    The tile is given as 31TCJ: the 2 digits correspond to the UTM zone
-    and the first letter is used to determine the northing (N-Z are
-    North hemisphere, see
-    https://en.wikipedia.org/wiki/Military_Grid_Reference_System#Grid_zone_designation)
-
-    """
-    zone = int(tile[:2])
-    south = tile[2] < 'N'
-    return CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south})
 
 
 @dataclass(frozen=True)
@@ -238,8 +201,8 @@ class SRTM:
 
 def get_dem_mgrs_tile(tile: str) -> DEM:
     """ Get a 10m resolution DEM on the geometry of a MGRS tile"""
-    mgrs_trsf = get_transform_mgrs_tile(tile)
-    mgrs_crs = get_crs_mgrs_tile(tile)
+    mgrs_trsf = mgrs.get_transform_mgrs_tile(tile)
+    mgrs_crs = mgrs.get_crs_mgrs_tile(tile)
     dst_dem = np.zeros((3, 10980, 10980))
     dem_handler = SRTM()
     srtm_dem = dem_handler.get_dem_mgrs_tile(tile)
