@@ -75,22 +75,23 @@ class DEM:
         """Get the DEM as a single 3 channel numpy array"""
         return np.stack([self.elevation, self.slope, self.aspect], axis=0)
 
-    def write(self, out_file: str):
-        """Write the DEM to a geotiff file"""
-        with rio.open(out_file,
-                      'w',
-                      driver='GTiff',
-                      height=self.elevation.shape[0],
-                      width=self.elevation.shape[1],
-                      count=3,
-                      nodata=-32768.0,
-                      dtype=self.elevation.dtype,
-                      compress='lzw',
-                      crs=self.crs,
-                      transform=self.transform) as ds:
-            ds.write(self.elevation, 1)
-            ds.write(self.slope, 2)
-            ds.write(self.aspect, 3)
+
+def write_dem(dem: DEM, out_file: str):
+    """Write a DEM to a geotiff file"""
+    with rio.open(out_file,
+                  'w',
+                  driver='GTiff',
+                  height=dem.elevation.shape[0],
+                  width=dem.elevation.shape[1],
+                  count=3,
+                  nodata=-32768.0,
+                  dtype=dem.elevation.dtype,
+                  compress='lzw',
+                  crs=dem.crs,
+                  transform=dem.transform) as ds:
+        ds.write(dem.elevation, 1)
+        ds.write(dem.slope, 2)
+        ds.write(dem.aspect, 3)
 
 
 @dataclass(frozen=True)

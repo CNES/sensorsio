@@ -60,4 +60,4 @@ def test_generate_dem():
 def test_dem_on_mgrs_tile():
     TILE = '31TDH'
     s2_dem = srtm.get_dem_mgrs_tile(TILE)
-    s2_dem.write(f"/tmp/dem_{TILE}.tif")
+    srtm.write_dem(s2_dem, f"/tmp/dem_{TILE}.tif")
