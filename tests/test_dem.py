@@ -1,5 +1,6 @@
+import mgrs
 import rasterio as rio
-import src.sensorsio.srtm as srtm
+import srtm
 
 
 def test_srtm_id_to_name():
@@ -9,11 +10,11 @@ def test_srtm_id_to_name():
 
 
 def test_crs_from_mgrs():
-    assert srtm.get_crs_mgrs_tile('31TDH').to_authority() == ('EPSG', '32631')
+    assert mgrs.get_crs_mgrs_tile('31TDH').to_authority() == ('EPSG', '32631')
 
 
 def test_mgrs_transform():
-    assert srtm.get_transform_mgrs_tile('31TDH') == rio.Affine(
+    assert mgrs.get_transform_mgrs_tile('31TDH') == rio.Affine(
         10.0, 0.0, 399960.0, 0.0, -10.0, 4800000.0)
 
 
