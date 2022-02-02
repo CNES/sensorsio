@@ -150,9 +150,9 @@ class SRTM:
                str]:
         assert bounds is not None
         dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
-                                   -resolution, bounds.bottom)
-        dst_size_x = (bounds.right - bounds.left) // resolution
-        dst_size_y = (bounds.top - bounds.bottom) // resolution
+                                   resolution, bounds.bottom)
+        dst_size_x = int((bounds.right - bounds.left) / resolution)
+        dst_size_y = int((bounds.top - bounds.bottom) / resolution)
         dst_dem = np.zeros((3, dst_size_x, dst_size_y))
         dem_handler = SRTM()
         bbox = compute_latlon_bbox_from_region(bounds, crs)
@@ -168,10 +168,10 @@ class SRTM:
         np_arr_height = dst_dem[0, :, :].astype(dtype)
         np_arr_slope = dst_dem[1, :, :].astype(dtype)
         np_arr_aspect = dst_dem[2, :, :].astype(dtype)
-        xcoords = np.arange(bounds.left, bounds.right, resolution)
-        ycoords = np.arange(bounds.bottom, bounds.top, -resolution)
+        xcoords = np.linspace(bounds.left, bounds.right, dst_size_x)
+        ycoords = np.linspace(bounds.top, bounds.bottom, dst_size_y)
         return (np_arr_height, np_arr_slope, np_arr_aspect, xcoords, ycoords,
-                crs)
+                crs, dst_dem_transform)
 
     def read_as_xarray(
             self,
@@ -181,13 +181,13 @@ class SRTM:
             no_data_value: float = np.nan,
             algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
             dtype: np.dtype = np.float32) -> xr.Dataset:
-        (np_arr_height, np_arr_slope, np_arr_aspect, xcoords, ycoords,
-         crs) = self.read_as_numpy(crs, resolution, bounds, no_data_value,
-                                   algorithm, dtype)
+        (np_arr_height, np_arr_slope, np_arr_aspect, xcoords, ycoords, crs,
+         transform) = self.read_as_numpy(crs, resolution, bounds,
+                                         no_data_value, algorithm, dtype)
         vars: Dict[str, Tuple[List[str], np.ndarray]] = {}
-        vars['height'] = (["y", "x"], np_arr_height[None, ...])
-        vars['slope'] = (["y", "x"], np_arr_slope[None, ...])
-        vars['aspect'] = (["y", "x"], np_arr_aspect[None, ...])
+        vars['height'] = (["x", "y"], np_arr_height)
+        vars['slope'] = (["x", "y"], np_arr_slope)
+        vars['aspect'] = (["x", "y"], np_arr_aspect)
         xarr = xr.Dataset(vars,
                           coords={
                               'x': xcoords,
@@ -195,7 +195,8 @@ class SRTM:
                           },
                           attrs={
                               'crs': crs,
-                              'resolution': resolution
+                              'resolution': resolution,
+                              'transform': transform
                           })
         return xarr
 

@@ -62,3 +62,28 @@ def test_dem_on_mgrs_tile():
     TILE = '31TDH'
     s2_dem = srtm.get_dem_mgrs_tile(TILE)
     srtm.write_dem(s2_dem, f"/tmp/dem_{TILE}.tif")
+
+
+def test_dem_read_as_numpy():
+    TILE = '31TDH'
+    crs = mgrs.get_crs_mgrs_tile(TILE)
+    resolution = 100.0
+    bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
+    print("Bounds ", srtm.compute_latlon_bbox_from_region(bbox, crs))
+    dem_handler = srtm.SRTM()
+    (elevation, slope, aspect, xcoords, ycoords, dem_crs,
+     dem_transform) = dem_handler.read_as_numpy(crs, resolution, bbox)
+    dem = srtm.DEM(elevation, slope, aspect, dem_crs, dem_transform)
+    srtm.write_dem(dem, f"/tmp/dem_{TILE}_np.tif")
+
+
+def test_dem_read_as_xarray():
+    TILE = '31TDH'
+    crs = mgrs.get_crs_mgrs_tile(TILE)
+    resolution = 100.0
+    bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
+    print("Bounds ", srtm.compute_latlon_bbox_from_region(bbox, crs))
+    dem_handler = srtm.SRTM()
+    xarr_dem = dem_handler.read_as_xarray(crs, resolution, bbox)
+    print(xarr_dem)
+    assert False
