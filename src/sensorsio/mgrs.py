@@ -27,15 +27,6 @@ def get_bbox_mgrs_tile(tile: str) -> BoundingBox:
     return BoundingBox(*poly.bounds)
 
 
-def get_transform_mgrs_tile(tile: str) -> rio.Affine:
-    """ Get the rasterio.Affine transform for a MGRS tile in its own CRS"""
-    ul, ur, ll, lr, _ = get_polygon_mgrs_tile(tile).exterior.coords
-    transformer = Transformer.from_crs('+proj=latlong',
-                                       get_crs_mgrs_tile(tile))
-    x0, y0 = transformer.transform([ul[0]], [ul[1]])
-    return rio.Affine(10.0, 0.0, np.round(x0[0]), 0.0, -10.0, np.round(y0[0]))
-
-
 def get_crs_mgrs_tile(tile: str) -> CRS:
     """Get the pyproj.CRS for a MGRS tile.
 
@@ -48,3 +39,12 @@ def get_crs_mgrs_tile(tile: str) -> CRS:
     zone = int(tile[:2])
     south = tile[2] < 'N'
     return CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south})
+
+
+def get_transform_mgrs_tile(tile: str) -> rio.Affine:
+    """ Get the rasterio.Affine transform for a MGRS tile in its own CRS"""
+    ul, ur, ll, lr, _ = get_polygon_mgrs_tile(tile).exterior.coords
+    transformer = Transformer.from_crs('+proj=latlong',
+                                       get_crs_mgrs_tile(tile))
+    x0, y0 = transformer.transform([ul[0]], [ul[1]])
+    return rio.Affine(10.0, 0.0, np.round(x0[0]), 0.0, -10.0, np.round(y0[0]))
