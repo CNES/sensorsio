@@ -21,10 +21,19 @@ def get_polygon_mgrs_tile(tile: str) -> Polygon:
     return mgrs_df[mgrs_df.Name == tile].iloc[0].geometry
 
 
-def get_bbox_mgrs_tile(tile: str) -> BoundingBox:
-    """ Get a bounding box in '+proj=latlong' for a MGRS tile"""
+def get_bbox_mgrs_tile(tile: str, latlon: bool = True) -> BoundingBox:
+    """ Get a bounding box in '+proj=latlong' for a MGRS tile. If latlon is False, the bounding box is given in the CRS of the MGRS tile"""
     poly = get_polygon_mgrs_tile(tile)
-    return BoundingBox(*poly.bounds)
+    bbox = BoundingBox(*poly.bounds)
+    if latlon:
+        return bbox
+    else:
+        transformer = Transformer.from_crs('+proj=latlong',
+                                           get_crs_mgrs_tile(tile))
+        (left, right), (bottom,
+                        top) = transformer.transform([bbox.left, bbox.right],
+                                                     [bbox.bottom, bbox.top])
+        return BoundingBox(left, bottom, right, top)
 
 
 def get_crs_mgrs_tile(tile: str) -> CRS:
