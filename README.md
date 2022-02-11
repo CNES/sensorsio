@@ -104,18 +104,11 @@ For **Sentinel2 L2A** products from Theia, it offers:
 *  On-the-fly projection to a different Coordinates Reference System while reading
 *  Image and geographical spatial subsetting
 *  Supports registration offsets computed by StackReg
+*  Access to solar and view angles
 
 See [this notebook](notebooks/sentinel2.ipynb) for an in depth review of the capabilties with ```Sentinel2``` class.
 
-### Pleiades (PHRTiling format)
-
-For **Pleiades** Products calibrated by [PHRTiling](https://gitlab.cnes.fr/cesbio/phrtiling), it offers:
-*  Convenient attributes like day of year or sensor id
-*  Selective read of desired XS bands
-*  On-the-fly projection to a different Coordinates Reference System while reading
-*  Image and geographical spatial subsetting
-
-See [this notebook](notebooks/venus.ipynb) for an illustration of the capabilities of the ```Pleiades``` class.
+See [this notebook](notebooks/sentinel2_angles.ipynb) for the access to solar and view angles.
 
 ### Venus L2A (Theia)
 
@@ -130,25 +123,14 @@ See [this notebook](notebooks/venus.ipynb) for an in depth review of the capabil
 
 ## Installation
 
-### Clone sources
-from CESBIO gitlab:
-```bash
-$ git clone http://osr-cesbio.ups-tlse.fr/gitlab_cesbio/michelj/sensorsio.git
-```
-From CNES gitlab:
-```bash
-$ git clone git@gitlab.cnes.fr:cesbio/sensorsio.git
-```
-
-### Installer le paquet avec pip
 Pass the path to cloned repository to ```pip install```:
 ```bash
 $ pip install sensorsio
 ```
 ## TODO list
 
-- [ ] Add Water Vapor and AOT bands to sentinel2 driver (in progress)
-- [ ] Add solar and satellite angles to sentinel2 driver (in progress)
+- [x] Add Water Vapor and AOT bands to sentinel2 driver (in progress)
+- [x] Add solar and satellite angles to sentinel2 driver (in progress)
 - [x] Add relative orbit number computation to sentinel2 driver
 - [x] Add footprint polygon to sentinel2 driver (intersection of MGRS tile and orbit swath)
 
