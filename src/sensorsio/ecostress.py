@@ -17,12 +17,13 @@ class Ecostress():
     """
     ECostress dataset
     """
-    def __init__(self, lst_file: str, geom_file: str):
+    def __init__(self, lst_file: str, geom_file: str, cloud_file: str = None):
         """
 
         """
         self.lst_file = lst_file
         self.geom_file = geom_file
+        self.cloud_file = cloud_file
 
         with h5py.File(self.geom_file) as ds:
             # Parse acquisition times
@@ -38,13 +39,13 @@ class Ecostress():
                                                   end_time[1:-2])
 
             # Parse bounds
-            min_lat = ds['StandardMetadata/WestBoundingCoordinate'][()]
-            max_lat = ds['StandardMetadata/EastBoundingCoordinate'][()]
-            min_lon = ds['StandardMetadata/SouthBoundingCoordinate'][()]
-            max_lon = ds['StandardMetadata/NorthBoundingCoordinate'][()]
+            min_lon = ds['StandardMetadata/WestBoundingCoordinate'][()]
+            max_lon = ds['StandardMetadata/EastBoundingCoordinate'][()]
+            min_lat = ds['StandardMetadata/SouthBoundingCoordinate'][()]
+            max_lat = ds['StandardMetadata/NorthBoundingCoordinate'][()]
 
-            self.bounds = rio.coords.BoundingBox(min_lat, min_lon, max_lat,
-                                                 max_lon)
+            self.bounds = rio.coords.BoundingBox(min_lon, min_lat, max_lon,
+                                                 max_lat)
             self.crs = '+proj=latlon'
 
     def __repr__(self):
@@ -154,13 +155,22 @@ class Ecostress():
                     em[em == 0] = np.nan
                     vois.append(em)
 
+        # Read cloud mask if available
+        if self.cloud_file:
+            with h5py.File(self.cloud_file) as cloudDS:
+                cld = np.array(cloudDS['SDS/CloudMask'][
+                    region[0]:region[2], region[1]:region[3]].astype(dtype))
+                # CAUTION: we can resample cloud mask with other
+                # variables as long as we do nearest neighbor
+                # interpolation
+                vois.append(cld)
         # Stack variables of intereset into a single array
         vois = np.stack(vois, axis=-1)
 
-        nb_rows = int(np.floor((bounds[2] - bounds[0]) / resolution))
-        nb_cols = int(np.floor((bounds[3] - bounds[1]) / resolution))
+        nb_rows = int(np.floor((bounds[3] - bounds[1]) / resolution))
+        nb_cols = int(np.floor((bounds[2] - bounds[0]) / resolution))
 
-        print(nb_rows, nb_cols)
+        #print(nb_rows, nb_cols)
 
         area_def = pyresample.geometry.AreaDefinition('test', 'test', crs, crs,
                                                       nb_cols, nb_rows, bounds)
@@ -178,16 +188,35 @@ class Ecostress():
         lst_end = angles_end + (1 if read_lst else 0)
         em_end = lst_end + (5 if read_emissivities else 0)
 
-        lst = result[:, :, angles_end] if read_lst else 0
-        angles = result[:, :, :angles_end] if read_angles else 0
-        emissivities = result[:, :, lst_end:] if read_emissivities else 0
+        lst = result[:, :, angles_end] if read_lst else None
+        angles = result[:, :, :angles_end] if read_angles else None
+        emissivities = result[:, :, lst_end:] if read_emissivities else None
+        clouds = result[:, :,
+                        em_end].astype(np.uint8) if self.cloud_file else None
+
+        # Unpack cloud mask
+        masks = None
+        if self.cloud_file:
+            valid_mask = np.bitwise_and(clouds, 0b00000001) > 0
+            cloud_mask = np.logical_or(
+                np.logical_or(
+                    np.bitwise_and(clouds, 0b00000010) > 0,
+                    np.bitwise_and(clouds, 0b00000100) > 0),
+                np.bitwise_and(clouds, 0b00001000) > 0)
+            land_mask = (np.bitwise_and(clouds, 0b00100000) > 0)
+            sea_mask = np.logical_not(land_mask)
+            cloud_mask[~valid_mask] = False
+            land_mask[~valid_mask] = False
+            sea_mask[~valid_mask] = False
+
+            masks = np.stack((cloud_mask, land_mask, sea_mask), axis=-1)
 
         xcoords = np.arange(bounds[0], bounds[0] + nb_cols * resolution,
                             resolution)
         ycoords = np.arange(bounds[3], bounds[3] - nb_rows * resolution,
                             -resolution)
 
-        return lst, emissivities, angles, xcoords, ycoords, crs
+        return lst, emissivities, angles, masks, xcoords, ycoords, crs
 
     def read_as_xarray(self,
                        crs: str = None,
@@ -211,7 +240,7 @@ class Ecostress():
         :param dtype: dtype of the output Tensor
         """
 
-        lst, emissivities, angles, xcoords, ycoords, crs = self.read_as_numpy(
+        lst, emissivities, angles, masks, xcoords, ycoords, crs = self.read_as_numpy(
             crs, resolution, region, no_data_value, read_lst, read_angles,
             read_emissivities, bounds, nprocs, dtype)
 
@@ -230,6 +259,11 @@ class Ecostress():
             vars['Solar_Zenith'] = (['y', 'x'], angles[:, :, 1])
             vars['View_Azimuth'] = (['y', 'x'], angles[:, :, 2])
             vars['View_Zenith'] = (['y', 'x'], angles[:, :, 3])
+
+        if masks is not None:
+            vars['Cloud_Mask'] = (['y', 'x'], masks[:, :, 0])
+            vars['Land_Mask'] = (['y', 'x'], masks[:, :, 1])
+            vars['Sea_Mask'] = (['y', 'x'], masks[:, :, 2])
 
         xarr = xr.Dataset(vars,
                           coords={

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales
-
 """
 This module contains utilities function
 """
@@ -17,16 +16,14 @@ from rasterio.warp import transform_bounds
 import rasterio as rio
 from affine import Affine
 
-def rgb_render(data: np.ndarray,
-               clip: int = 2,
-               bands: List[int] = [2,
-                                   1,
-                                   0],
-               norm: bool = True,
-               dmin: np.ndarray = None,
-               dmax: np.ndarray = None) -> Tuple[np.ndarray,
-                                                 np.ndarray,
-                                                 np.ndarray]:
+
+def rgb_render(
+        data: np.ndarray,
+        clip: int = 2,
+        bands: List[int] = [2, 1, 0],
+        norm: bool = True,
+        dmin: np.ndarray = None,
+        dmax: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Prepare data for visualization with matplot lib
 
@@ -37,8 +34,8 @@ def rgb_render(data: np.ndarray,
 
     :returns: a tuple of data ready for matplotlib, dmin, dmax
     """
-    assert(len(bands) == 1 or len(bands) == 3)
-    assert(clip >= 0 and clip <= 100)
+    assert (len(bands) == 1 or len(bands) == 3)
+    assert (clip >= 0 and clip <= 100)
 
     # Extract bands from data
     data_ready = np.take(data, bands, axis=0)
@@ -63,11 +60,10 @@ def rgb_render(data: np.ndarray,
     return data_ready, dmin, dmax
 
 
-def generate_psf_kernel(
-        res: float,
-        mtf_res: float,
-        mtf_fc: float,
-        half_kernel_width: int = None) -> np.ndarray:
+def generate_psf_kernel(res: float,
+                        mtf_res: float,
+                        mtf_fc: float,
+                        half_kernel_width: int = None) -> np.ndarray:
     """
     Generate a gaussian PSF kernel sampled at given resolution
 
@@ -99,16 +95,15 @@ def generate_psf_kernel(
     return kernel
 
 
-def create_warped_vrt(
-        filename: str,
-        resolution: float,
-        dst_bounds: BoundingBox = None,
-        dst_crs: str = None,
-        src_nodata: float = None,
-        nodata: float = None,
-        shifts: Tuple[float] = None,
-        resampling: Resampling = Resampling.cubic,
-        dtype=None) -> WarpedVRT:
+def create_warped_vrt(filename: str,
+                      resolution: float,
+                      dst_bounds: BoundingBox = None,
+                      dst_crs: str = None,
+                      src_nodata: float = None,
+                      nodata: float = None,
+                      shifts: Tuple[float] = None,
+                      resampling: Resampling = Resampling.cubic,
+                      dtype=None) -> WarpedVRT:
     """
     Create a warped vrt from filename, to change srs and resolution
 
@@ -136,7 +131,7 @@ def create_warped_vrt(
                 target_bounds = transform_bounds(src.crs, dst_crs, *src.bounds)
             else:
                 target_bounds = src.bounds
-                
+
         src_transform = src.transform
         if shifts is not None:
             src_res = src_transform[0]
@@ -147,8 +142,7 @@ def create_warped_vrt(
         left, bottom, right, top = target_bounds
         dst_width = (right - left) / resolution
         dst_height = (top - bottom) / resolution
-        dst_transform = Affine(resolution, 0.0, left,
-                               0.0, -resolution, top)
+        dst_transform = Affine(resolution, 0.0, left, 0.0, -resolution, top)
 
         vrt_options = {
             'resampling': resampling,
@@ -157,7 +151,6 @@ def create_warped_vrt(
             'width': dst_width,
             'crs': target_crs,
             'src_transform': src_transform
-
         }
         if src_nodata is not None:
             vrt_options['src_nodata'] = src_nodata
@@ -172,6 +165,7 @@ def create_warped_vrt(
         vrt = WarpedVRT(src, **vrt_options)
 
         return vrt
+
 
 def bb_intersect(bb: List[BoundingBox]) -> BoundingBox:
     """
@@ -192,6 +186,7 @@ def bb_intersect(bb: List[BoundingBox]) -> BoundingBox:
 
     return BoundingBox(left=xmin, bottom=ymin, right=xmax, top=ymax)
 
+
 def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
     """
     Snap a bounding box to multiple of align parameter
@@ -207,7 +202,11 @@ def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
     top = align * np.ceil(bb[3] / align)
     return BoundingBox(left=left, bottom=bottom, right=right, top=top)
 
-def bb_common(bounds: List[BoundingBox], src_crs:List[str], snap: float = 20, target_crs: str = None):
+
+def bb_common(bounds: List[BoundingBox],
+              src_crs: List[str],
+              snap: float = 20,
+              target_crs: str = None):
     """
     Compute the common bounding box between a set of images.
     All bounding boxes are converted to crs before intersection.
@@ -221,32 +220,34 @@ def bb_common(bounds: List[BoundingBox], src_crs:List[str], snap: float = 20, ta
 
     returns: A tuple of box, crs
     """
-    assert(len(bounds)==len(src_crs))
-    boxes=[]
+    assert (len(bounds) == len(src_crs))
+    boxes = []
     for box, crs in zip(bounds, src_crs):
         if target_crs is None:
-            target_crs=crs
+            target_crs = crs
         crs_box = rio.warp.transform_bounds(crs, target_crs, *box)
         boxes.append(crs_box)
-            
+
     # Intersect all boxes
     box = bb_intersect(boxes)
     # Snap to grid
     box = bb_snap(box, align=snap)
-    return box, crs
+    return box, target_crs
 
-def read_as_numpy(img_files:List[str],
-                  crs: str=None,
-                  resolution:float = 10,
-                  offsets:Tuple[float,float]=None,
-                  region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
-                  input_no_data_value:float=None,
-                  output_no_data_value:float=np.nan,
-                  bounds:rio.coords.BoundingBox=None,
+
+def read_as_numpy(img_files: List[str],
+                  crs: str = None,
+                  resolution: float = 10,
+                  offsets: Tuple[float, float] = None,
+                  region: Union[Tuple[int, int, int, int],
+                                rio.coords.BoundingBox] = None,
+                  input_no_data_value: float = None,
+                  output_no_data_value: float = np.nan,
+                  bounds: rio.coords.BoundingBox = None,
                   algorithm=rio.enums.Resampling.cubic,
-                  separate:bool=False,
+                  separate: bool = False,
                   dtype=np.float32,
-                  scale:float=None) -> np.ndarray:
+                  scale: float = None) -> np.ndarray:
     """
     :param vrts: A list of WarpedVRT objects to stack
     :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
@@ -255,62 +256,70 @@ def read_as_numpy(img_files:List[str],
     
     
     TODO
-    """            
+    """
+    #print(f'{bounds=}')
     # Check if we need resampling or not
     need_warped_vrt = (offsets is not None)
     # If we change image bounds
     for f in img_files:
         with rio.open(f) as ds:
             if bounds is not None and ds.bounds != bounds:
-                need_warped_vrt=True
+                need_warped_vrt = True
             # If we change projection
             if crs is not None and crs != ds.crs:
-                need_warped_vrt=True
+                need_warped_vrt = True
             if ds.transform[0] != resolution:
-                need_warped_vrt=True
+                need_warped_vrt = True
+
+    #print(f'{need_warped_vrt=}')
 
     # If warped vrts are needed, create them
     if need_warped_vrt:
         datasets = [
-            create_warped_vrt(
-                f,
-                resolution,
-                dst_bounds=bounds,
-                dst_crs=crs,
-                nodata=input_no_data_value,
-                src_nodata=input_no_data_value,
-                resampling=algorithm,
-                shifts=offsets)
-        for f in img_files]
-            
+            create_warped_vrt(f,
+                              resolution,
+                              dst_bounds=bounds,
+                              dst_crs=crs,
+                              nodata=input_no_data_value,
+                              src_nodata=input_no_data_value,
+                              resampling=algorithm,
+                              shifts=offsets) for f in img_files
+        ]
+
     else:
-        datasets = [rio.open(f,'r') for f in img_files]
+        datasets = [rio.open(f, 'r') for f in img_files]
 
     # Retrieve actual crs
     crs = datasets[0].crs
+
+    #print(f'{datasets[0].bounds=}')
 
     # Read full img if region is None
     if region is None:
         region = datasets[0].bounds
 
     # Convert region to window
-    if isinstance(region,BoundingBox):
-        windows = [Window((region[0] - ds.bounds[0]) / ds.res[0],
-                          (region[1] - ds.bounds[1]) / ds.res[1],
-                          (region[2] - region[0]) / ds.res[0],
-                          (region[3] - region[1]) / ds.res[1]) for ds in datasets]
+    if isinstance(region, BoundingBox):
+        windows = [
+            Window((region[0] - ds.bounds[0]) / ds.res[0],
+                   (region[1] - ds.bounds[1]) / ds.res[1],
+                   (region[2] - region[0]) / ds.res[0],
+                   (region[3] - region[1]) / ds.res[1]) for ds in datasets
+        ]
     else:
-        windows = [Window(region[0],region[1],
-                          region[2] - region[0],
-                          region[3] - region[1]) for ds in datasets]
-        
+        windows = [
+            Window(region[0], region[1], region[2] - region[0],
+                   region[3] - region[1]) for ds in datasets
+        ]
+
     axis = 0
     # if vrts are bands of the same image
     if separate:
         axis = 1
 
-    np_stack = np.stack([ds.read(window=w)
-                         for (ds, w) in zip(datasets, windows)], axis=axis)
+    np_stack = np.stack(
+        [ds.read(window=w, masked=True) for (ds, w) in zip(datasets, windows)],
+        axis=axis)
 
     # Close datasets
     for d in datasets:
@@ -318,17 +327,20 @@ def read_as_numpy(img_files:List[str],
 
     # If scaling is required, apply it
     if scale is not None:
-        np_stack_mask = (np_stack==input_no_data_value)
-        np_stack = np_stack/scale
+        np_stack_mask = (np_stack == input_no_data_value)
+        np_stack = np_stack / scale
         np_stack[np_stack_mask] = output_no_data_value
 
     # Convert to float before casting to final dtype
+    #print(f'{ds.bounds=}')
     np_stack = np_stack.astype(dtype)
-    xcoords = np.arange(ds.bounds[0]+windows[0].col_off*resolution,
-                        ds.bounds[0]+(windows[0].col_off+np_stack.shape[3])*resolution, resolution)
-    ycoords = np.arange(ds.bounds[3]-windows[0].row_off*resolution,
-                        ds.bounds[3]-(windows[0].row_off+np_stack.shape[2])*resolution,
-                        -resolution)
-    
+    xcoords = np.arange(
+        bounds[0] + windows[0].col_off * resolution,
+        bounds[0] + (windows[0].col_off + np_stack.shape[3]) * resolution,
+        resolution)
+    ycoords = np.arange(
+        bounds[3] - windows[0].row_off * resolution,
+        bounds[3] - (windows[0].row_off + np_stack.shape[2]) * resolution,
+        -resolution)
 
     return np_stack, xcoords, ycoords, crs
