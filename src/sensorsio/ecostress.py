@@ -32,10 +32,10 @@ class Ecostress():
             end_date = str(ds['StandardMetadata/RangeEndingDate'][()])
             end_time = str(ds['StandardMetadata/RangeEndingTime'][()])
 
-            self.start_time = dateutil.parser.parse(start_date[1:-2] + "T" +
+            self.start_time = dateutil.parser.parse(start_date[1:-1] + "T" +
                                                     start_time[1:-2])
 
-            self.end_time = dateutil.parser.parse(end_date[1:-2] + "T" +
+            self.end_time = dateutil.parser.parse(end_date[1:-1] + "T" +
                                                   end_time[1:-2])
 
             # Parse bounds
