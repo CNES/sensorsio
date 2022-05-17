@@ -264,6 +264,8 @@ def read_as_numpy(img_files: List[str],
         with rio.open(f) as ds:
             if bounds is not None and ds.bounds != bounds:
                 need_warped_vrt = True
+            else:
+                bounds = ds.bounds
             # If we change projection
             if crs is not None and crs != ds.crs:
                 need_warped_vrt = True
