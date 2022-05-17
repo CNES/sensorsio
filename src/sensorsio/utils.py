@@ -75,8 +75,7 @@ def generate_psf_kernel(res: float,
     :return: The kernel as a ndarray of shape
              [2*half_kernel_width+1, 2*half_kernel_width+1]
     """
-    fc = 0.5 / mtf_res
-    sigma = math.sqrt(-math.log(mtf_fc) / 2) / (math.pi * fc)
+    sigma = (mtf_res / math.pi) * math.sqrt(-2 * math.log(mtf_fc))
     if half_kernel_width is None:
         half_kernel_width = int(math.ceil(mtf_res / (res)))
     kernel = np.zeros((2 * half_kernel_width + 1, 2 * half_kernel_width + 1))
