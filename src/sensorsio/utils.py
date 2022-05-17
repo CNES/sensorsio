@@ -178,6 +178,9 @@ def bb_intersect(bb: List[BoundingBox]) -> BoundingBox:
     ymin = bb[0][1]
     ymax = bb[0][3]
     for b in bb[1:]:
+        if b[0] > xmax or b[2] < xmin or b[1] > ymax or b[3] < ymin:
+            raise ValueError('Bounding Box intersection is empty!')
+
         xmin = max(xmin, b[0])
         xmax = min(xmax, b[2])
         ymin = max(ymin, b[1])
