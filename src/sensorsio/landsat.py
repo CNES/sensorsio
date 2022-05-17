@@ -220,7 +220,8 @@ class Landsat:
             # Skip first dimension
             np_arr = np_arr[0, ...]
 
-            np_arr_rescaled = (factors * np_arr) + shifts
+            np_arr_rescaled = (factors[:, None, None] *
+                               np_arr) + shifts[:, None, None]
 
             for i, b in enumerate(bands):
                 np_arr_rescaled[i, ...][np_arr[i, ...] ==
