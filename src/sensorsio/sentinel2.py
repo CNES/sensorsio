@@ -21,19 +21,21 @@ from scipy import ndimage
 from sklearn.linear_model import LinearRegression
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module='geopandas')
-
 """
 This module contains Sentinel2 (L2A MAJA) related functions
 """
+
 
 def get_theia_tiles():
     """
     Return a dataframe with tiles produced by Theia
     """
-    return gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/theia_s2.gpkg')).set_index('Name')
+    return gpd.read_file(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     'data/sentinel2/theia_s2.gpkg')).set_index('Name')
 
 
-def find_tile_orbit_pairs(bounds:rio.coords.BoundingBox, crs='epsg:4326'):
+def find_tile_orbit_pairs(bounds: rio.coords.BoundingBox, crs='epsg:4326'):
     """
     From bounding box and CRS, return a list of pairs of MGRS tiles
     and Sentinel2 relative orbits that covers the area, in the form of a dataframe.
@@ -46,32 +48,47 @@ def find_tile_orbit_pairs(bounds:rio.coords.BoundingBox, crs='epsg:4326'):
                             [wgs84_bounds[0], wgs84_bounds[3]],
                             [wgs84_bounds[2], wgs84_bounds[3]],
                             [wgs84_bounds[2], wgs84_bounds[1]]])
-    mgrs_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/mgrs_tiles.shp'))
-    orbits_df = gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/sentinel2/orbits.gpkg'))
-    intersections=[]
+    mgrs_df = gpd.read_file(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     'data/sentinel2/mgrs_tiles.shp'))
+    orbits_df = gpd.read_file(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     'data/sentinel2/orbits.gpkg'))
+    intersections = []
     for mgrs_id, mgrs_row in mgrs_df.iterrows():
         if aoi.intersects(mgrs_row.geometry):
             inter_mgrs_aoi = aoi.intersection(mgrs_row.geometry)
-            mgrs_coverage = inter_mgrs_aoi.area/aoi.area
-            orbits=[]
-            for orbit_id,orbit_row in orbits_df.iterrows():
+            mgrs_coverage = inter_mgrs_aoi.area / aoi.area
+            orbits = []
+            for orbit_id, orbit_row in orbits_df.iterrows():
                 # Last test is to exclude weird duplicates (malformed gpkg ?)
-                if orbit_row.geometry.intersects(inter_mgrs_aoi) and not orbit_row.orbit_number in orbits:
+                if orbit_row.geometry.intersects(
+                        inter_mgrs_aoi
+                ) and not orbit_row.orbit_number in orbits:
                     orbits.append(orbit_row.orbit_number)
-                    inter_mgrs_aoi_orbit = inter_mgrs_aoi.intersection(orbit_row.geometry)
-                    mgrs_orbit_coverage = inter_mgrs_aoi_orbit.area/aoi.area
-                    intersections.append((mgrs_row.Name,orbit_row.orbit_number,mgrs_coverage,mgrs_orbit_coverage))
+                    inter_mgrs_aoi_orbit = inter_mgrs_aoi.intersection(
+                        orbit_row.geometry)
+                    mgrs_orbit_coverage = inter_mgrs_aoi_orbit.area / aoi.area
+                    intersections.append(
+                        (mgrs_row.Name, orbit_row.orbit_number, mgrs_coverage,
+                         mgrs_orbit_coverage))
     # Build a standard pandas df from tuples
-    labels=['tile_id','relative_orbit_number','tile_coverage','tile_and_orbit_coverage']
-    df = pd.DataFrame.from_records(intersections,columns=labels)
+    labels = [
+        'tile_id', 'relative_orbit_number', 'tile_coverage',
+        'tile_and_orbit_coverage'
+    ]
+    df = pd.DataFrame.from_records(intersections, columns=labels)
     return df
 
 
 class Sentinel2:
     """
     Class for Sentinel2 L2A (MAJA format) product reading
-    """     
-    def __init__(self, product_dir:str, offsets:Tuple[float, float]=None, parse_xml=True):
+    """
+    def __init__(self,
+                 product_dir: str,
+                 offsets: Tuple[float, float] = None,
+                 parse_xml=True):
         """
         Constructor
 
@@ -85,13 +102,13 @@ class Sentinel2:
 
         # Look for xml file
         self.xml_file = self.build_xml_path()
-                
+
         # Store offsets
         self.offsets = offsets
 
         # Get
         self.satellite = Sentinel2.Satellite(self.product_name[0:10])
-                
+
         # Get tile
         self.tile = self.product_name[36:41]
 
@@ -99,22 +116,22 @@ class Sentinel2:
         self.date = dateutil.parser.parse(self.product_name[11:19])
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
-        
+
         with rio.open(self.build_band_path(Sentinel2.B2)) as ds:
-        # Get bounds
-            self.bounds  = ds.bounds
+            # Get bounds
+            self.bounds = ds.bounds
             self.transform = ds.transform
-        # Get crs
+            # Get crs
             self.crs = ds.crs
 
         # Init angles
         self.sun_angles = None
         self.incidence_angles = None
-            
+
         # Parse xml file if requested
         if parse_xml:
             self.parse_xml()
-            
+
     def __repr__(self):
         return f'{self.satellite.value}, {self.date}, {self.tile}'
 
@@ -133,36 +150,42 @@ class Sentinel2:
             orbit_node = root.find(".//ORBIT_NUMBER")
             if orbit_node is not None:
                 self.orbit = int(orbit_node.text)
-                self.relative_orbit_number = self.compute_relative_orbit_number(self.orbit)
+                self.relative_orbit_number = self.compute_relative_orbit_number(
+                    self.orbit)
 
             # Internal parsing function for angular grids
             def parse_angular_grid_node(node):
-                    values=[]
-                    for c in node.find('Values_List'):
-                        values.append(np.array([float(t) for t in c.text.split()]))
-                        values_array = np.stack(values)
-                    return values_array
+                values = []
+                for c in node.find('Values_List'):
+                    values.append(np.array([float(t) for t in c.text.split()]))
+                    values_array = np.stack(values)
+                return values_array
 
             # Parse sun angles
             Angles = namedtuple('Angles', 'zenith azimuth')
 
-            self.sun_angles = Angles(parse_angular_grid_node(root.find('.//Angles_Grids_List/Sun_Angles_Grids/Zenith')),
-                                     parse_angular_grid_node(root.find('.//Angles_Grids_List/Sun_Angles_Grids/Azimuth')))
+            self.sun_angles = Angles(
+                parse_angular_grid_node(
+                    root.find('.//Angles_Grids_List/Sun_Angles_Grids/Zenith')),
+                parse_angular_grid_node(
+                    root.find(
+                        './/Angles_Grids_List/Sun_Angles_Grids/Azimuth')))
 
             # Parse incidence angles
             self.incidence_angles = {}
-            for b in root.find('.//Angles_Grids_List/Viewing_Incidence_Angles_Grids_List'):
+            for b in root.find(
+                    './/Angles_Grids_List/Viewing_Incidence_Angles_Grids_List'
+            ):
                 if b.attrib['band_id'] != 'B1':
                     band_key = self.Band(b.attrib['band_id'])
                     band_dict = {}
                     for d in b.findall('Viewing_Incidence_Angles_Grids'):
-                        det_key=self.Detector(int(d.attrib['detector_id']))
+                        det_key = self.Detector(int(d.attrib['detector_id']))
                         zen = parse_angular_grid_node(d.find('Zenith'))
                         az = parse_angular_grid_node(d.find('Azimuth'))
-                        band_dict[det_key]=Angles(zen, az)
-                    self.incidence_angles[band_key]=band_dict
-                                                                    
-            
+                        band_dict[det_key] = Angles(zen, az)
+                    self.incidence_angles[band_key] = band_dict
+
     def compute_relative_orbit_number(self, orbit):
         """
         Compute relative orbit number from absolute orbit and sensor id
@@ -172,9 +195,8 @@ class Sentinel2:
             phase = 2
         else:
             phase = -27
-        return ((orbit+phase)%143)+1
-                            
-                 
+        return ((orbit + phase) % 143) + 1
+
     # Enum class for sensor
     class Satellite(Enum):
         S2A = 'SENTINEL2A'
@@ -198,7 +220,7 @@ class Sentinel2:
         B10 = 'B10'
         B11 = 'B11'
         B12 = 'B12'
-        
+
     # Aliases
     B2 = Band.B2
     B3 = Band.B3
@@ -213,7 +235,6 @@ class Sentinel2:
     B11 = Band.B11
     B12 = Band.B12
 
-
     # Enum class for Sentinel2 L2A masks
     class Mask(Enum):
         SAT = 'SAT'
@@ -226,7 +247,7 @@ class Sentinel2:
     CLM = Mask.CLM
     EDG = Mask.EDG
     MG2 = Mask.MG2
-    
+
     # Enum class for mask and Atmos resolutions
     class Res(Enum):
         R1 = 'R1'
@@ -235,14 +256,13 @@ class Sentinel2:
     # Aliases for resolution
     R1 = Res.R1
     R2 = Res.R2
-    
+
     # Atmosphere bands
     class Atmos(Enum):
         ATB = 'ATB'
-    
-    # Aliases for atmosphere bands 
+
+    # Aliases for atmosphere bands
     ATB = Atmos.ATB
-  
 
     # Band groups
     GROUP_10M = [B2, B3, B4, B8]
@@ -255,7 +275,7 @@ class Sentinel2:
     class BandType(Enum):
         FRE = 'FRE'
         SRE = 'SRE'
-        
+
     # Aliases for band type
     FRE = BandType.FRE
     SRE = BandType.SRE
@@ -274,7 +294,7 @@ class Sentinel2:
         D10 = 10
         D11 = 11
         D12 = 12
-    
+
     # MTF
     MTF = {
         B2: 0.304,
@@ -287,7 +307,8 @@ class Sentinel2:
         B8A: 0.325,
         B9: 0.39,
         B11: 0.21,
-        B12: 0.19}
+        B12: 0.19
+    }
 
     # Resolution
     RES = {
@@ -301,13 +322,12 @@ class Sentinel2:
         B8A: 20,
         B9: 60,
         B11: 60,
-        B12: 60}
+        B12: 60
+    }
 
-    def PSF(
-        self,
-        bands: List[Band],
-        resolution: float = 0.5,
-        half_kernel_width: int = None):
+    def PSF(bands: List[Band],
+            resolution: float = 0.5,
+            half_kernel_width: int = None):
         """
         Generate PSF kernels from list of bands
     
@@ -319,19 +339,21 @@ class Sentinel2:
         :return: The kernels as a Tensor of shape
                  [len(bands),2*half_kernel_width+1, 2*half_kernel_width+1]
         """
-        return np.stack([(utils.generate_psf_kernel(resolution,
-                                                    Sentinel2.RES[b],
-                                                    Sentinel2.MTF[b],
-                                                    half_kernel_width)) for b in bands])
-
+        return np.stack([
+            (utils.generate_psf_kernel(resolution, Sentinel2.RES[b],
+                                       Sentinel2.MTF[b], half_kernel_width))
+            for b in bands
+        ])
 
     def build_detectors_masks_path(self):
         """
         Return a dictionnary of path to detector masks at both R1 and R2 resolution
         """
-         # Sorted ensure masks come in the same order in both lists
-        r1_masks = sorted(glob.glob(f"{self.product_dir}/MASKS/*DTF_R1-D*.tif"))
-        r2_masks = sorted(glob.glob(f"{self.product_dir}/MASKS/*DTF_R2-D*.tif"))
+        # Sorted ensure masks come in the same order in both lists
+        r1_masks = sorted(
+            glob.glob(f"{self.product_dir}/MASKS/*DTF_R1-D*.tif"))
+        r2_masks = sorted(
+            glob.glob(f"{self.product_dir}/MASKS/*DTF_R2-D*.tif"))
 
         # Named tuple to store output
         DetectorMasks = namedtuple('DetectorMasks', 'r1 r2')
@@ -341,10 +363,10 @@ class Sentinel2:
         # Collect all pairs of detectors
         for (r1, r2) in zip(r1_masks, r2_masks):
             detector_idx = self.Detector(int(r1[-6:-4]))
-            output[detector_idx] = DetectorMasks(r1,r2)
+            output[detector_idx] = DetectorMasks(r1, r2)
 
         return output
-        
+
     def build_xml_path(self) -> str:
         """
         Return path to root xml file
@@ -352,13 +374,12 @@ class Sentinel2:
         p = glob.glob(f"{self.product_dir}/*MTD_ALL.xml")
         # Raise
         if len(p) == 0:
-            raise FileNotFoundError(f"Could not find root XML file in product directory {self.product_dir}")
+            raise FileNotFoundError(
+                f"Could not find root XML file in product directory {self.product_dir}"
+            )
         return p[0]
-    
-    def build_band_path(
-        self,
-        band: Band,
-        band_type: BandType = FRE) -> str:
+
+    def build_band_path(self, band: Band, band_type: BandType = FRE) -> str:
         """
         Build path to a band for product
         :param band: The band to build path for as a Sentinel2.Band enum value
@@ -366,16 +387,16 @@ class Sentinel2:
 
         :return: The path to the band file
         """
-        p = glob.glob(f"{self.product_dir}/*{band_type.value}_{band.value}.tif")
+        p = glob.glob(
+            f"{self.product_dir}/*{band_type.value}_{band.value}.tif")
         # Raise
         if len(p) == 0:
-            raise FileNotFoundError(f"Could not find band {band.value} of type {band_type.value} in product directory {self.product_dir}")
+            raise FileNotFoundError(
+                f"Could not find band {band.value} of type {band_type.value} in product directory {self.product_dir}"
+            )
         return p[0]
 
-    def build_mask_path(
-        self,
-        mask: Mask,
-        resolution: Res = R1) -> str:
+    def build_mask_path(self, mask: Mask, resolution: Res = R1) -> str:
         """
         Build path to a band for product
         :param band: The band to build path for as a Sentinel2.Band enum value
@@ -383,15 +404,17 @@ class Sentinel2:
 
         :return: The path to the band file
         """
-        p = glob.glob(f"{self.product_dir}/MASKS/*{mask.value}_{resolution.value}.tif")
+        p = glob.glob(
+            f"{self.product_dir}/MASKS/*{mask.value}_{resolution.value}.tif")
         # Raise
         if len(p) == 0:
-            raise FileNotFoundError(f"Could not find mask {mask.value} of resolution {resolution.value} in product directory {self.product_dir}")
+            raise FileNotFoundError(
+                f"Could not find mask {mask.value} of resolution {resolution.value} in product directory {self.product_dir}"
+            )
         return p[0]
-    
-    def build_atmos_path( ####################
-        self,
-        resolution: Res = R1) -> str:
+
+    def build_atmos_path(  ####################
+            self, resolution: Res = R1) -> str:
         """
         Build path to a file containing WVC and AOT bands for product
         :param atmos: The band type to build path for Sentinel 2 atmosphere bands
@@ -402,24 +425,28 @@ class Sentinel2:
         p = glob.glob(f"{self.product_dir}/*ATB_{resolution.value}.tif")
         # Raise
         if len(p) == 0:
-            raise FileNotFoundError(f"Could not find ATB of resolution {resolution.value} in product directory {self.product_dir}")
+            raise FileNotFoundError(
+                f"Could not find ATB of resolution {resolution.value} in product directory {self.product_dir}"
+            )
         return p[0]
 
-
-    def read_as_numpy(self,
-                      bands:List[Band],
-                      band_type:BandType = FRE,
-                      masks:List[Mask]=ALL_MASKS,
-                      readAtmos:bool = False,
-                      res:Res = Res.R1,
-                      scale:float=10000,
-                      crs: str=None,
-                      resolution:float = 10,
-                      region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
-                      no_data_value:float=np.nan,
-                      bounds:rio.coords.BoundingBox=None,
-                      algorithm=rio.enums.Resampling.cubic,
-                      dtype:np.dtype=np.float32) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+    def read_as_numpy(
+        self,
+        bands: List[Band],
+        band_type: BandType = FRE,
+        masks: List[Mask] = ALL_MASKS,
+        readAtmos: bool = False,
+        res: Res = Res.R1,
+        scale: float = 10000,
+        crs: str = None,
+        resolution: float = 10,
+        region: Union[Tuple[int, int, int, int],
+                      rio.coords.BoundingBox] = None,
+        no_data_value: float = np.nan,
+        bounds: rio.coords.BoundingBox = None,
+        algorithm=rio.enums.Resampling.cubic,
+        dtype: np.dtype = np.float32
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
         """
         Read bands from Sentinel2 products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -448,78 +475,82 @@ class Sentinel2:
         crs = None
         if len(bands):
             img_files = [self.build_band_path(b, band_type) for b in bands]
-            np_arr, xcoords, ycoords, crs =  utils.read_as_numpy(img_files,
-                                                                 crs=crs,
-                                                                 resolution=resolution,
-                                                                 offsets=self.offsets,
-                                                                 region=region,
-                                                                 output_no_data_value = no_data_value,
-                                                                 input_no_data_value = -10000,
-                                                                 bounds = bounds,
-                                                                 algorithm = algorithm,
-                                                                 separate=True,
-                                                                 dtype = dtype,
-                                                                 scale = scale)
+            np_arr, xcoords, ycoords, crs = utils.read_as_numpy(
+                img_files,
+                crs=crs,
+                resolution=resolution,
+                offsets=self.offsets,
+                region=region,
+                output_no_data_value=no_data_value,
+                input_no_data_value=-10000,
+                bounds=bounds,
+                algorithm=algorithm,
+                separate=True,
+                dtype=dtype,
+                scale=scale)
 
             # Skip first dimension
-            np_arr = np_arr[0,...]
+            np_arr = np_arr[0, ...]
 
         # Read masks if needed
-        np_arr_msk=None
-        if len(masks)!=0:
+        np_arr_msk = None
+        if len(masks) != 0:
             mask_files = [self.build_mask_path(m, res) for m in masks]
-            np_arr_msk, _, _, _ =  utils.read_as_numpy(mask_files,
-                                                    crs=crs,
-                                                    resolution=resolution,
-                                                    offsets=self.offsets,
-                                                    region=region,
-                                                    output_no_data_value = no_data_value,
-                                                    input_no_data_value = -10000,
-                                                    bounds = bounds,
-                                                    algorithm = rio.enums.Resampling.nearest,
-                                                    separate=True,
-                                                    dtype = np.uint8,
-                                                    scale = None)
+            np_arr_msk, _, _, _ = utils.read_as_numpy(
+                mask_files,
+                crs=crs,
+                resolution=resolution,
+                offsets=self.offsets,
+                region=region,
+                output_no_data_value=no_data_value,
+                input_no_data_value=-10000,
+                bounds=bounds,
+                algorithm=rio.enums.Resampling.nearest,
+                separate=True,
+                dtype=np.uint8,
+                scale=None)
             # Skip first dimension
-            np_arr_msk = np_arr_msk[0,...]
-        
+            np_arr_msk = np_arr_msk[0, ...]
+
         # Read atmosphere band
-        np_arr_atm=None
+        np_arr_atm = None
         if readAtmos:
             atmos_file = [self.build_atmos_path(res)]
-            np_arr_atm, _, _, _ = utils.read_as_numpy(atmos_file,
-                                                    crs=crs,
-                                                    resolution=resolution,
-                                                    offsets=self.offsets,
-                                                    region=region,
-                                                    output_no_data_value = no_data_value,
-                                                    input_no_data_value = -10000,
-                                                    bounds = bounds,
-                                                    algorithm = algorithm,
-                                                    separate=True,
-                                                    dtype = np.float,
-                                                    scale = None)
+            np_arr_atm, _, _, _ = utils.read_as_numpy(
+                atmos_file,
+                crs=crs,
+                resolution=resolution,
+                offsets=self.offsets,
+                region=region,
+                output_no_data_value=no_data_value,
+                input_no_data_value=-10000,
+                bounds=bounds,
+                algorithm=algorithm,
+                separate=True,
+                dtype=np.float,
+                scale=None)
             # Normalize
-            np_arr_atm = np_arr_atm[:,0,...]
-            np_arr_atm[1] = np_arr_atm[1]/200
-        
+            np_arr_atm = np_arr_atm[:, 0, ...]
+            np_arr_atm[1] = np_arr_atm[1] / 200
+
         # Return plain numpy array
         return np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs
 
     def read_as_xarray(self,
-                       bands:List[Band],
-                       band_type:BandType = FRE,
-                       masks:List[Mask]=ALL_MASKS,
-                       res:Res = Res.R1,
-                       readAtmos:bool = False,
-                       scale:float=10000,
-                       crs: str=None,
-                       resolution:float = 10,
-                       region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
-                       no_data_value:float=np.nan,
-                       bounds:rio.coords.BoundingBox=None,
+                       bands: List[Band],
+                       band_type: BandType = FRE,
+                       masks: List[Mask] = ALL_MASKS,
+                       res: Res = Res.R1,
+                       readAtmos: bool = False,
+                       scale: float = 10000,
+                       crs: str = None,
+                       resolution: float = 10,
+                       region: Union[Tuple[int, int, int, int],
+                                     rio.coords.BoundingBox] = None,
+                       no_data_value: float = np.nan,
+                       bounds: rio.coords.BoundingBox = None,
                        algorithm=rio.enums.Resampling.cubic,
-                       dtype:np.dtype=np.float32) -> xr.Dataset:
+                       dtype: np.dtype = np.float32) -> xr.Dataset:
         """
         Read bands from Sentinel2 products as a numpy
 
@@ -538,111 +569,133 @@ class Sentinel2:
         :param dtype: dtype of the output Tensor
         :return: The image pixels as a np.ndarray of shape [bands, width, height]
         """
-        np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs = self.read_as_numpy(bands, band_type,
-                                                                                   masks, readAtmos, res,
-                                                                                   scale, crs,
-                                                                                   resolution, region,
-                                                                                   no_data_value, bounds,
-                                                                                   algorithm, dtype)
+        np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs = self.read_as_numpy(
+            bands, band_type, masks, readAtmos, res, scale, crs, resolution,
+            region, no_data_value, bounds, algorithm, dtype)
 
         vars = {}
         for i in range(len(bands)):
-            vars[bands[i].value]=(["t", "y", "x"] , np_arr[None,i,...])
+            vars[bands[i].value] = (["t", "y", "x"], np_arr[None, i, ...])
             for i in range(len(masks)):
-                vars[masks[i].value]=(["t", "y", "x"] , np_arr_msk[None,i,...])
+                vars[masks[i].value] = (["t", "y", "x"], np_arr_msk[None, i,
+                                                                    ...])
         if np_arr_atm is not None:
-            vars['WCV']=(["t", "y", "x"] , np_arr_atm[None,0,...])
-            vars['AOT']=(["t", "y", "x"] , np_arr_atm[None,1,...])
-            
-            
+            vars['WCV'] = (["t", "y", "x"], np_arr_atm[None, 0, ...])
+            vars['AOT'] = (["t", "y", "x"], np_arr_atm[None, 1, ...])
+
         xarr = xr.Dataset(vars,
-                          coords={'t' : [self.date], 'x' : xcoords, 'y':ycoords},
-                          attrs= {'tile' : self.tile,
-                                  'type' : band_type.value,
-                                  'crs' : crs})
+                          coords={
+                              't': [self.date],
+                              'x': xcoords,
+                              'y': ycoords
+                          },
+                          attrs={
+                              'tile': self.tile,
+                              'type': band_type.value,
+                              'crs': crs
+                          })
         return xarr
 
     #@profile
-    def upsample_angular_grid(self, grid:np.ndarray, res:Res=Res.R1, order:int=1) -> np.ndarray:
+    def upsample_angular_grid(self,
+                              grid: np.ndarray,
+                              res: Res = Res.R1,
+                              order: int = 1) -> np.ndarray:
         """
         upsample given angular grid at target resolution
         """
         if res == self.Res.R1:
-            target_resolution=10.
+            target_resolution = 10.
         else:
-            target_resolution=20.
-        
+            target_resolution = 20.
+
         # Angular grids have a resolution of 5 km
-        scale_factor=5000/target_resolution
+        scale_factor = 5000 / target_resolution
 
         input_grid = np.array(grid)
-                
-        zoomed_grid = ndimage.zoom(input_grid, scale_factor, prefilter=False, order=1, mode='nearest', grid_mode=True)
-        nb_pixels = int(10980*10/target_resolution)
+
+        zoomed_grid = ndimage.zoom(input_grid,
+                                   scale_factor,
+                                   prefilter=False,
+                                   order=1,
+                                   mode='nearest',
+                                   grid_mode=True)
+        nb_pixels = int(10980 * 10 / target_resolution)
         # We assume that angular center of first pixel correspond to center of first 10m pixel
-        offset = int(scale_factor/2.)
-        return zoomed_grid[offset:nb_pixels+offset, offset:nb_pixels+offset]
+        offset = int(scale_factor / 2.)
+        return zoomed_grid[offset:nb_pixels + offset,
+                           offset:nb_pixels + offset]
 
     #@profile
-    def extrapolate_grid(self,grid):
+    def extrapolate_grid(self, grid):
         """
         """
         out_grid = np.copy(grid)
         x, y = np.indices(grid.shape)
         xvalid = x[~np.isnan(grid)]
         xvalid = x[~np.isnan(grid)]
-        reg = LinearRegression().fit(np.stack((x[~np.isnan(grid)], y[~np.isnan(grid)]), axis=1),grid[~np.isnan(grid)])
-        grid_filled =  reg.predict(np.stack((x.ravel(), y.ravel()), axis=1)).reshape(grid.shape)
-        out_grid[np.isnan(grid)]=grid_filled[np.isnan(grid)]
+        reg = LinearRegression().fit(
+            np.stack((x[~np.isnan(grid)], y[~np.isnan(grid)]), axis=1),
+            grid[~np.isnan(grid)])
+        grid_filled = reg.predict(np.stack((x.ravel(), y.ravel()),
+                                           axis=1)).reshape(grid.shape)
+        out_grid[np.isnan(grid)] = grid_filled[np.isnan(grid)]
 
         return out_grid
-    
+
     #@profile
-    def upsample_by_viewing_directions(self, zenith, azimuth, res:Res=Res.R1, order:int=1, extrapolate=False):
+    def upsample_by_viewing_directions(self,
+                                       zenith,
+                                       azimuth,
+                                       res: Res = Res.R1,
+                                       order: int = 1,
+                                       extrapolate=False):
         """
 
         """
         # Copy input grids
-        in_zenith=zenith
-        in_azimuth=azimuth
-        
+        in_zenith = zenith
+        in_azimuth = azimuth
+
         # Extrapolate nans if needed
         if extrapolate:
-            in_zenith=self.extrapolate_grid(zenith)
-            in_azimuth=self.extrapolate_grid(azimuth)
-            
-        # Use cartesian coordiantes to interpolate azimuth
-        dx = np.tan(np.deg2rad(in_zenith))* np.sin(np.deg2rad(in_azimuth))
-        dy = np.tan(np.deg2rad(in_zenith))* np.cos(np.deg2rad(in_azimuth))
+            in_zenith = self.extrapolate_grid(zenith)
+            in_azimuth = self.extrapolate_grid(azimuth)
 
-        zoomed_dx = self.upsample_angular_grid(dx,res=res, order=order)
-        zoomed_dy = self.upsample_angular_grid(dy,res=res, order=order)
+        # Use cartesian coordiantes to interpolate azimuth
+        dx = np.tan(np.deg2rad(in_zenith)) * np.sin(np.deg2rad(in_azimuth))
+        dy = np.tan(np.deg2rad(in_zenith)) * np.cos(np.deg2rad(in_azimuth))
+
+        zoomed_dx = self.upsample_angular_grid(dx, res=res, order=order)
+        zoomed_dy = self.upsample_angular_grid(dy, res=res, order=order)
 
         # General case
-        zoomed_azimuth = np.arctan(zoomed_dx/zoomed_dy)
-        zoomed_azimuth[zoomed_dy<0] += np.pi
-        zoomed_azimuth[zoomed_azimuth<0] += 2*np.pi
-        zoomed_zenith = np.arctan(zoomed_dy/np.cos(zoomed_azimuth))
+        zoomed_azimuth = np.arctan(zoomed_dx / zoomed_dy)
+        zoomed_azimuth[zoomed_dy < 0] += np.pi
+        zoomed_azimuth[zoomed_azimuth < 0] += 2 * np.pi
+        zoomed_zenith = np.arctan(zoomed_dy / np.cos(zoomed_azimuth))
 
         # dy == 0 but not dx
-        mask =np.logical_and(zoomed_dy==0, zoomed_dx!=0)
-        zoomed_azimuth[mask]=np.pi/(2*np.sign(zoomed_dx[mask]))
-        zoomed_azimuth[np.logical_and(mask,zoomed_azimuth<0)]+=2*np.pi
-        zoomed_zenith[mask]=np.arctan(np.abs(zoomed_dx[mask]))
+        mask = np.logical_and(zoomed_dy == 0, zoomed_dx != 0)
+        zoomed_azimuth[mask] = np.pi / (2 * np.sign(zoomed_dx[mask]))
+        zoomed_azimuth[np.logical_and(mask, zoomed_azimuth < 0)] += 2 * np.pi
+        zoomed_zenith[mask] = np.arctan(np.abs(zoomed_dx[mask]))
 
         # dy == 0 and dxy == 0
-        mask = np.logical_and(zoomed_dy==0, zoomed_dx==0)
-        zoomed_azimuth[mask]=0.
-        zoomed_zenith[mask]=0.
+        mask = np.logical_and(zoomed_dy == 0, zoomed_dx == 0)
+        zoomed_azimuth[mask] = 0.
+        zoomed_zenith[mask] = 0.
 
         # Final conversion to degrees
-        zoomed_zenith=np.rad2deg(zoomed_zenith)
-        zoomed_azimuth=np.rad2deg(zoomed_azimuth)
-        
+        zoomed_zenith = np.rad2deg(zoomed_zenith)
+        zoomed_azimuth = np.rad2deg(zoomed_azimuth)
+
         return zoomed_zenith, zoomed_azimuth
 
     #@profile
-    def read_solar_angles_as_numpy(self, res:Res = Res.R1, interpolation_order:int=1):
+    def read_solar_angles_as_numpy(self,
+                                   res: Res = Res.R1,
+                                   interpolation_order: int = 1):
         """
         Return zenith and azimuth solar angle as a tuple fo 2 numpy arrays at requested resolution
         """
@@ -651,10 +704,16 @@ class Sentinel2:
             self.parse_xml()
 
         # Call up-sampling routine
-        return self.upsample_by_viewing_directions(self.sun_angles.zenith, self.sun_angles.azimuth, res, order=interpolation_order)
+        return self.upsample_by_viewing_directions(self.sun_angles.zenith,
+                                                   self.sun_angles.azimuth,
+                                                   res,
+                                                   order=interpolation_order)
 
     #@profile
-    def read_incidence_angles_as_numpy(self, band:Band = Band.B2, res:Res = Res.R1, interpolation_order:int=1):
+    def read_incidence_angles_as_numpy(self,
+                                       band: Band = Band.B2,
+                                       res: Res = Res.R1,
+                                       interpolation_order: int = 1):
         """
         
         """
@@ -668,19 +727,19 @@ class Sentinel2:
         detector_masks = self.build_detectors_masks_path()
 
         # Derive output shape
-        out_shape = (10980,10980)
+        out_shape = (10980, 10980)
 
         if res != self.Res.R1:
-            out_shape=(5490,5490)
+            out_shape = (5490, 5490)
 
         # Init outputs
-        odd_zenith_angles = np.full(out_shape,np.nan)
-        odd_azimuth_angles = np.full(out_shape,np.nan)
-        even_zenith_angles = np.full(out_shape,np.nan)
-        even_azimuth_angles = np.full(out_shape,np.nan)
+        odd_zenith_angles = np.full(out_shape, np.nan)
+        odd_azimuth_angles = np.full(out_shape, np.nan)
+        even_zenith_angles = np.full(out_shape, np.nan)
+        even_azimuth_angles = np.full(out_shape, np.nan)
 
         # Loop on all detectors
-        for det,angles in band_angles.items():
+        for det, angles in band_angles.items():
 
             if det in detector_masks:
                 # Get path to detector mask
@@ -692,40 +751,49 @@ class Sentinel2:
                 with rio.open(current_detector_mask_path) as ds:
                     current_detector_mask = ds.read(1)
 
-                zoomed_zenith, zoomed_azimuth = self.upsample_by_viewing_directions(angles.zenith, angles.azimuth, res=res, order=interpolation_order, extrapolate=True)
+                zoomed_zenith, zoomed_azimuth = self.upsample_by_viewing_directions(
+                    angles.zenith,
+                    angles.azimuth,
+                    res=res,
+                    order=interpolation_order,
+                    extrapolate=True)
 
                 # # Derive cartesian coordinates for azimyth
                 # cartesian = angles.zenith * np.cos(angles.azimuth*np.pi/180.)
 
                 # # Zoom zenith
                 # zoomed_zenith = self.upsample_angular_grid(angles.zenith,res=res, order=interpolation_order, extrapolate=True)
-                
+
                 # # Zoom cartesian
                 # zoomed_cartesian = self.upsample_angular_grid(cartesian,res=res, order=interpolation_order, extrapolate=True)
-                
+
                 # # Get back to azimuth
                 # zoomed_azimuth = (180./np.pi)*np.arccos(zoomed_cartesian/zoomed_zenith)
 
                 # Apply masking
-                zoomed_zenith[current_detector_mask==0]=np.nan
-                zoomed_azimuth[current_detector_mask==0]=np.nan
+                zoomed_zenith[current_detector_mask == 0] = np.nan
+                zoomed_azimuth[current_detector_mask == 0] = np.nan
 
                 # Build validy mask
                 valid_zenith_mask = np.logical_not(np.isnan(zoomed_zenith))
                 valid_azimuth_mask = np.logical_not(np.isnan(zoomed_azimuth))
-                                               
+
                 # Sort out detectors
-                if det.value%2==1:
-                    odd_zenith_angles[valid_zenith_mask] = zoomed_zenith[valid_zenith_mask]
-                    odd_azimuth_angles[valid_azimuth_mask] = zoomed_azimuth[valid_azimuth_mask]
+                if det.value % 2 == 1:
+                    odd_zenith_angles[valid_zenith_mask] = zoomed_zenith[
+                        valid_zenith_mask]
+                    odd_azimuth_angles[valid_azimuth_mask] = zoomed_azimuth[
+                        valid_azimuth_mask]
                 else:
-                    even_zenith_angles[valid_zenith_mask] = zoomed_zenith[valid_zenith_mask]
-                    even_azimuth_angles[valid_azimuth_mask] = zoomed_azimuth[valid_azimuth_mask]
+                    even_zenith_angles[valid_zenith_mask] = zoomed_zenith[
+                        valid_zenith_mask]
+                    even_azimuth_angles[valid_azimuth_mask] = zoomed_azimuth[
+                        valid_azimuth_mask]
 
                 # Clear
                 del zoomed_zenith
                 del zoomed_azimuth
                 del valid_zenith_mask
                 del valid_azimuth_mask
-                
+
         return even_zenith_angles, odd_zenith_angles, even_azimuth_angles, odd_azimuth_angles
