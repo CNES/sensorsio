@@ -150,10 +150,10 @@ class SRTM:
                str]:
         assert bounds is not None
         dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
-                                   resolution, bounds.bottom)
-        dst_size_x = int((bounds.right - bounds.left) / resolution)
-        dst_size_y = int((bounds.top - bounds.bottom) / resolution)
-        dst_dem = np.zeros((3, dst_size_x, dst_size_y))
+                                   -resolution, bounds.top)
+        dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
+        dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
+        dst_dem = np.zeros((3, dst_size_y, dst_size_x))
         dem_handler = SRTM()
         bbox = compute_latlon_bbox_from_region(bounds, crs)
         srtm_dem = dem_handler.get_dem_for_bbox(bbox)
@@ -168,8 +168,9 @@ class SRTM:
         np_arr_height = dst_dem[0, :, :].astype(dtype)
         np_arr_slope = dst_dem[1, :, :].astype(dtype)
         np_arr_aspect = dst_dem[2, :, :].astype(dtype)
-        xcoords = np.linspace(bounds.left, bounds.right, dst_size_x)
-        ycoords = np.linspace(bounds.top, bounds.bottom, dst_size_y)
+        print(np_arr_height.shape, dst_size_x, dst_size_y)
+        xcoords = np.arange(bounds.left, bounds.right, resolution)
+        ycoords = np.arange(bounds.top, bounds.bottom, -resolution)
         return (np_arr_height, np_arr_slope, np_arr_aspect, xcoords, ycoords,
                 crs, dst_dem_transform)
 
@@ -185,9 +186,9 @@ class SRTM:
          transform) = self.read_as_numpy(crs, resolution, bounds,
                                          no_data_value, algorithm, dtype)
         vars: Dict[str, Tuple[List[str], np.ndarray]] = {}
-        vars['height'] = (["x", "y"], np_arr_height)
-        vars['slope'] = (["x", "y"], np_arr_slope)
-        vars['aspect'] = (["x", "y"], np_arr_aspect)
+        vars['height'] = (["y", "x"], np_arr_height)
+        vars['slope'] = (["y", "x"], np_arr_slope)
+        vars['aspect'] = (["y", "x"], np_arr_aspect)
         xarr = xr.Dataset(vars,
                           coords={
                               'x': xcoords,
