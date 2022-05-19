@@ -14,11 +14,11 @@ def test_crs_from_mgrs():
 
 def test_mgrs_transform():
     assert mgrs.get_transform_mgrs_tile("31TDH") == rio.Affine(
-        10.0, 0.0, 399960.0, 0.0, -10.0, 4800000.0
-    )
+        10.0, 0.0, 399960.0, 0.0, -10.0, 4800000.0)
 
 
 def test_srtm_tiles_from_mgrs_tile():
+
     def build_tile_list(tile):
         return [tid.name() for tid in srtm.get_srtm_tiles_for_mgrs_tile(tile)]
 
@@ -57,17 +57,17 @@ def test_generate_dem():
     dem_handler = srtm.SRTM()
     dem = dem_handler.get_dem_mgrs_tile("31TDH")
     with rio.open(
-        "/tmp/dem.tif",
-        "w",
-        driver="GTiff",
-        height=dem.elevation.shape[0],
-        width=dem.elevation.shape[1],
-        count=3,
-        nodata=-32768.0,
-        dtype=dem.elevation.dtype,
-        compress="lzw",
-        crs="+proj=latlong",
-        transform=dem.transform,
+            "/tmp/dem.tif",
+            "w",
+            driver="GTiff",
+            height=dem.elevation.shape[0],
+            width=dem.elevation.shape[1],
+            count=3,
+            nodata=-32768.0,
+            dtype=dem.elevation.dtype,
+            compress="lzw",
+            crs="+proj=latlong",
+            transform=dem.transform,
     ) as ds:
         ds.write(dem.elevation, 1)
         ds.write(dem.slope, 2)
@@ -109,4 +109,3 @@ def test_dem_read_as_xarray():
     dem_handler = srtm.SRTM()
     xarr_dem = dem_handler.read_as_xarray(crs, resolution, bbox)
     print(xarr_dem)
-    assert False
