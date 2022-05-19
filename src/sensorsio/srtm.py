@@ -5,6 +5,7 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
+import os
 import numpy as np
 import rasterio as rio
 import xarray as xr
@@ -136,6 +137,8 @@ class SRTM:
     def __build_hgt(self,
                     tiles: List[SRTMTileId]) -> Tuple[np.ndarray, rio.Affine]:
         file_names = [f"{self.base_dir}/{t.name()}.hgt" for t in tiles]
+        # Screen unavailable tiles
+        file_names = [f for f in file_names if os.path.isfile(f)]
         return merge(file_names)  # type: ignore
 
     def read_as_numpy(
