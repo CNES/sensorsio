@@ -59,7 +59,7 @@ class Landsat:
         ST_CDIST = 'ST_CDIST'
 
     # Aliases
-    B1 = Band.B2
+    B1 = Band.B1
     B2 = Band.B2
     B3 = Band.B3
     B4 = Band.B4
