@@ -171,7 +171,6 @@ class SRTM:
         np_arr_height = dst_dem[0, :, :].astype(dtype)
         np_arr_slope = dst_dem[1, :, :].astype(dtype)
         np_arr_aspect = dst_dem[2, :, :].astype(dtype)
-        print(np_arr_height.shape, dst_size_x, dst_size_y)
         xcoords = np.arange(bounds.left, bounds.right, resolution)
         ycoords = np.arange(bounds.top, bounds.bottom, -resolution)
         return (np_arr_height, np_arr_slope, np_arr_aspect, xcoords, ycoords,
