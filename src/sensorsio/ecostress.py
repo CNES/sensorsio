@@ -149,7 +149,7 @@ class Ecostress():
             # Read emissivities
             if read_emissivities:
                 for em in [f'Emis{b}' for b in range(1, 6)]:
-                    em = 0.49 + 0.02 * np.array(
+                    em = 0.49 + 0.002 * np.array(
                         lstDS[f'SDS/{em}'][region[0]:region[2],
                                            region[1]:region[3]].astype(dtype))
                     em[em == 0] = np.nan
