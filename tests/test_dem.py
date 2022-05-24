@@ -1,5 +1,5 @@
 import rasterio as rio
-from sensorsio import mgrs, srtm
+from sensorsio import mgrs, srtm, utils
 
 
 def test_srtm_id_to_name():
@@ -85,7 +85,7 @@ def test_dem_read_as_numpy():
     crs = mgrs.get_crs_mgrs_tile(TILE)
     resolution = 100.0
     bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
-    print("Bounds ", srtm.compute_latlon_bbox_from_region(bbox, crs))
+    print("Bounds ", utils.compute_latlon_bbox_from_region(bbox, crs))
     dem_handler = srtm.SRTM()
     (
         elevation,
