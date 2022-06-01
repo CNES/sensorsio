@@ -25,8 +25,9 @@ class WorldClimQuantity(Enum):
     WIND = "wind"
 
 
-WorldClimQuantityAll: List[WorldClimQuantity] = [wcq
-                                                 for wcq in WorldClimQuantity]
+WorldClimQuantityAll: List[WorldClimQuantity] = [
+    wcq for wcq in WorldClimQuantity
+]
 
 
 class WorldClimBio(Enum):
@@ -170,6 +171,6 @@ class WorldClimData:
             resampling=algorithm,
         )
         dst_wc = dst_wc.astype(dtype)
-        xcoords = np.linspace(bounds.left, bounds.right, dst_size_x)
-        ycoords = np.linspace(bounds.top, bounds.bottom, dst_size_y)
+        xcoords = np.arange(bounds.left, bounds.right, resolution)
+        ycoords = np.arange(bounds.top, bounds.bottom, -resolution)
         return (dst_wc, xcoords, ycoords, crs, dst_wc_transform)
