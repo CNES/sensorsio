@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import rasterio as rio
+import xarray as xr
 from rasterio.coords import BoundingBox
 from rasterio.warp import reproject
 
@@ -73,6 +74,18 @@ class WorldClimVar:
                              "Received {var.value} {month}")
 
 
+WorldClimQuantityVarAll: List[WorldClimVar] = [
+    WorldClimVar(v, m) for v in WorldClimQuantityAll for m in range(1, 13)
+]
+
+WorldClimBioVarAll: List[WorldClimVar] = [
+    WorldClimVar(wcb) for wcb in WorldClimBio
+]
+
+WorldClimVarAll: List[
+    WorldClimVar] = WorldClimQuantityVarAll + WorldClimBioVarAll
+
+
 class WorldClimData:
     """ WorldClim data model and reading"""
 
@@ -118,13 +131,17 @@ class WorldClimData:
 
         return image
 
-    def get_file_path(self, var: WorldClimVar):
-        """ Return the file path for a variable"""
+    def get_var_name(self, var):
         if var.typ == 'bio':
-            fname = f"bio_{self.wcres}_{var.value}"
+            return f"bio_{self.wcres}_{var.value}"
         else:
-            fname = f"{self.wcres}_{var.value}_{var.month:02}"
-        return f"{self.wcdir}/{self.wcprefix}_{fname}.tif"
+            return f"{self.wcres}_{var.value}_{var.month:02}"
+
+    def get_file_path(self, var: WorldClimVar) -> str:
+        """ Return the file path for a variable"""
+
+        var_name = self.get_var_name(var)
+        return f"{self.wcdir}/{self.wcprefix}_{var_name}.tif"
 
     def get_wc_for_bbox(self,
                         bbox,
@@ -174,3 +191,39 @@ class WorldClimData:
         xcoords = np.arange(bounds.left, bounds.right, resolution)
         ycoords = np.arange(bounds.top, bounds.bottom, -resolution)
         return (dst_wc, xcoords, ycoords, crs, dst_wc_transform)
+
+    def read_as_xarray(
+        self,
+        vars: Optional[List[WorldClimVar]] = None,
+        crs: str = None,
+        resolution: float = 100,
+        bounds: BoundingBox = None,
+        algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
+        dtype: np.dtype = np.float32,
+    ) -> xr.Dataset:
+        (
+            np_wc,
+            xcoords,
+            ycoords,
+            crs,
+            transform,
+        ) = self.read_as_numpy(vars, crs, resolution, bounds, algorithm, dtype)
+        if vars is None:
+            vars = WorldClimVarAll
+        xr_vars: Dict[str, Tuple[List[str], np.ndarray]] = {
+            self.get_var_name(var): (["y", "x"], np_wc[idx, :, :])
+            for idx, var in enumerate(vars)
+        }
+        xarr = xr.Dataset(
+            xr_vars,
+            coords={
+                "x": xcoords,
+                "y": ycoords
+            },
+            attrs={
+                "crs": str(crs),
+                "resolution": resolution,
+                "transform": str(transform),
+            },
+        )
+        return xarr

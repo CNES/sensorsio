@@ -118,3 +118,19 @@ def test_wc_read_as_numpy(vars, suffix):
             transform=dst_wc_transform,
     ) as ds:
         ds.write(dst_wc)
+
+
+@pytest.mark.parametrize(
+    "vars, suffix",
+    [(None, "all"),
+     ([WorldClimVar(WorldClimQuantity.WIND, m) for m in range(1, 6)], "wind")],
+)
+def test_wc_read_as_xarray(vars, suffix):
+    TILE = "35NKA"
+    crs = mgrs.get_crs_mgrs_tile(TILE)
+    resolution = 200.0
+    bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
+    wcd = WorldClimData()
+    wcd.read_as_xarray(
+        vars=vars, crs=crs, resolution=resolution, bounds=bbox).to_netcdf(
+            f"/work/scratch/{os.environ['USER']}/wc_test_{suffix}.nc")
