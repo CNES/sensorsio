@@ -15,6 +15,7 @@ from .utils import compute_latlon_bbox_from_region
 
 
 class WorldClimQuantity(Enum):
+    """ The physical quantities available in the WorldClim data base"""
     PREC = "prec"
     SRAD = "srad"
     TAVG = "tavg"
@@ -28,6 +29,7 @@ WorldClimQuantityAll = [wcq for wcq in WorldClimQuantity]
 
 
 class WorldClimBio(Enum):
+    """ The BIO variables available in the WorldClim data base"""
     BIO01 = "01"  # Annual Mean Temperature
     BIO02 = "02"  # Mean Diurnal Range (Mean of monthly (max temp - min temp))
     BIO03 = "03"  # Isothermality (BIO2/BIO7) (* 100)
