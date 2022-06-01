@@ -25,7 +25,8 @@ class WorldClimQuantity(Enum):
     WIND = "wind"
 
 
-WorldClimQuantityAll = [wcq for wcq in WorldClimQuantity]
+WorldClimQuantityAll: List[WorldClimQuantity] = [wcq
+                                                 for wcq in WorldClimQuantity]
 
 
 class WorldClimBio(Enum):
@@ -51,7 +52,7 @@ class WorldClimBio(Enum):
     BIO19 = "19"  # Precipitation of Coldest Quarter
 
 
-WorldClimBioAll = [wcb for wcb in WorldClimBio]
+WorldClimBioAll: List[WorldClimBio] = [wcb for wcb in WorldClimBio]
 
 
 class WorldClimVar:
@@ -141,21 +142,23 @@ class WorldClimData:
 
     def read_as_numpy(
         self,
-        crs: str,
-        resolution: float,
-        bounds: BoundingBox,
+        vars: Optional[List[WorldClimVar]] = None,
+        crs: str = None,
+        resolution: float = 100,
+        bounds: BoundingBox = None,
         algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
         dtype: np.dtype = np.float32,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
                str]:
-        """ Read the data corresponding to a bounding box and return it as a numpy array"""
+        """Read the data corresponding to a bounding box and return it
+        as a numpy array"""
         assert bounds is not None
         dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
                                    -resolution, bounds.top)
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
         dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
         bbox = compute_latlon_bbox_from_region(bounds, crs)
-        wc_bbox, src_transform = self.get_wc_for_bbox(bbox)
+        wc_bbox, src_transform = self.get_wc_for_bbox(bbox, vars)
         dst_wc = np.zeros((wc_bbox.shape[0], dst_size_y, dst_size_x))
         dst_wc, dst_wc_transform = reproject(
             wc_bbox,

@@ -10,8 +10,12 @@ from sensorsio.worldclim import (WorldClimBio, WorldClimData,
 
 @pytest.mark.parametrize(
     "var, month, fail",
-    [(WorldClimQuantity.TAVG, 10, False), (WorldClimQuantity.TAVG, 0, True),
-     (WorldClimBio.BIO15, None, False), (WorldClimBio.BIO02, 10, True)],
+    [
+        (WorldClimQuantity.TAVG, 10, False),
+        (WorldClimQuantity.TAVG, 0, True),
+        (WorldClimBio.BIO15, None, False),
+        (WorldClimBio.BIO02, 10, True),
+    ],
 )
 def test_wc_var(var, month, fail):
     try:
@@ -39,28 +43,35 @@ def test_biofiles_exist():
 
 def test_crop_to_bbox():
     wcd = WorldClimData()
-    bbox = BoundingBox(left=1.7458519129811987,
-                       bottom=42.35763630809999,
-                       right=3.1204336461000004,
-                       top=43.35279198479999)
+    bbox = BoundingBox(
+        left=1.7458519129811987,
+        bottom=42.35763630809999,
+        right=3.1204336461000004,
+        top=43.35279198479999,
+    )
     wc_data = wcd.crop_to_bbox(wcd.climfiles[0], bbox)
     assert wc_data.shape == (1, 119, 164)
 
 
 @pytest.mark.parametrize(
     "vars",
-    [[WorldClimVar(WorldClimQuantity.TAVG, 1)],
-     [
-         WorldClimVar(WorldClimQuantity.TAVG, 1),
-         WorldClimVar(WorldClimBio.BIO03)
-     ], None],
+    [
+        [WorldClimVar(WorldClimQuantity.TAVG, 1)],
+        [
+            WorldClimVar(WorldClimQuantity.TAVG, 1),
+            WorldClimVar(WorldClimBio.BIO03),
+        ],
+        None,
+    ],
 )
 def test_get_wc_for_bbox(vars):
     wcd = WorldClimData()
-    bbox = BoundingBox(left=1.7458519129811987,
-                       bottom=42.35763630809999,
-                       right=3.1204336461000004,
-                       top=43.35279198479999)
+    bbox = BoundingBox(
+        left=1.7458519129811987,
+        bottom=42.35763630809999,
+        right=3.1204336461000004,
+        top=43.35279198479999,
+    )
     wc, transform = wcd.get_wc_for_bbox(bbox, vars=vars)
     nb_vars = 103
     if vars is not None:
@@ -68,27 +79,36 @@ def test_get_wc_for_bbox(vars):
     assert wc.shape == (nb_vars, 119, 164)
 
 
-def test_wc_read_as_numpy():
+@pytest.mark.parametrize(
+    "vars",
+    [
+        None,
+        [WorldClimVar(WorldClimQuantity.PREC, m) for m in range(1, 6)],
+        [WorldClimVar(wcb) for wcb in WorldClimBio],
+    ],
+)
+def test_wc_read_as_numpy(vars):
     TILE = "35NKA"
     crs = mgrs.get_crs_mgrs_tile(TILE)
     resolution = 200.0
     bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
     wcd = WorldClimData()
-    (dst_wc, xcoords, ycoords, crs,
-     dst_wc_transform) = wcd.read_as_numpy(crs, resolution, bbox)
+    (dst_wc, xcoords, ycoords, crs, dst_wc_transform) = wcd.read_as_numpy(
+        vars=vars, crs=crs, resolution=resolution, bounds=bbox
+    )
     # Write just 3 channels for simplicity
     dst_wc = dst_wc[:3, :, :]
     with rio.open(
-            "/work/scratch/ingladaj/MMDC/wc_test.tif",
-            "w",
-            driver="GTiff",
-            height=dst_wc.shape[1],
-            width=dst_wc.shape[2],
-            count=dst_wc.shape[0],
-            nodata=-32768.0,
-            dtype=dst_wc.dtype,
-            compress="lzw",
-            crs=crs,
-            transform=dst_wc_transform,
+        "/work/scratch/ingladaj/MMDC/wc_test.tif",
+        "w",
+        driver="GTiff",
+        height=dst_wc.shape[1],
+        width=dst_wc.shape[2],
+        count=dst_wc.shape[0],
+        nodata=-32768.0,
+        dtype=dst_wc.dtype,
+        compress="lzw",
+        crs=crs,
+        transform=dst_wc_transform,
     ) as ds:
         ds.write(dst_wc)
