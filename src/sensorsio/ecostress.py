@@ -72,6 +72,7 @@ class Ecostress():
         :param no_data_value: How no-data will appear in output ndarray
         :param bounds: New bounds for datasets. If different from image bands, will use a WarpedVRT
         :param algorithm: The resampling algorithm to be used if WarpedVRT
+        :param nprocs: Number of processors used for reading
         :param dtype: dtype of the output Tensor
         :return: The image pixels as a np.ndarray of shape [bands, width, height],
                  The masks pixels as a np.ndarray of shape [masks, width, height],
@@ -156,6 +157,7 @@ class Ecostress():
                     vois.append(em)
 
         # Read cloud mask if available
+        vois_discretes = []
         if self.cloud_file:
             with h5py.File(self.cloud_file) as cloudDS:
                 cld = np.array(cloudDS['SDS/CloudMask'][
@@ -163,9 +165,10 @@ class Ecostress():
                 # CAUTION: we can resample cloud mask with other
                 # variables as long as we do nearest neighbor
                 # interpolation
-                vois.append(cld)
+                vois_discretes.append(cld)
         # Stack variables of intereset into a single array
         vois = np.stack(vois, axis=-1)
+        vois_discretes = np.stack(vois_discretes, axis=-1)
 
         nb_rows = int(np.floor((bounds[3] - bounds[1]) / resolution))
         nb_cols = int(np.floor((bounds[2] - bounds[0]) / resolution))
@@ -176,23 +179,34 @@ class Ecostress():
                                                       nb_cols, nb_rows, bounds)
         swath_def = pyresample.geometry.SwathDefinition(lons=longitude,
                                                         lats=latitude)
-        result = pyresample.kd_tree.resample_nearest(swath_def,
-                                                     vois,
-                                                     area_def,
-                                                     radius_of_influence=3 *
-                                                     resolution,
-                                                     fill_value=no_data_value,
-                                                     nprocs=nprocs)
+        result_discretes = pyresample.kd_tree.resample_nearest(
+            swath_def,
+            vois_discretes,
+            area_def,
+            radius_of_influence=3 * resolution,
+            fill_value=no_data_value,
+            nprocs=nprocs)
+
+        # We will compute the gausian weighting by considering an MTF of 0.1
+        sigma = (70 / np.pi) * np.sqrt(-2 * np.log(0.1))
+        radius = np.ceil(70. / resolution)
+        result = pyresample.kd_tree.resample_gauss(
+            swath_def,
+            vois,
+            area_def,
+            radius_of_influence=radius * resolution,
+            sigmas=[sigma for i in range(vois.shape[-1])],
+            fill_value=no_data_value,
+            nprocs=nprocs)
 
         angles_end = 4 if read_angles else 0
         lst_end = angles_end + (1 if read_lst else 0)
-        em_end = lst_end + (5 if read_emissivities else 0)
 
         lst = result[:, :, angles_end] if read_lst else None
         angles = result[:, :, :angles_end] if read_angles else None
         emissivities = result[:, :, lst_end:] if read_emissivities else None
-        clouds = result[:, :,
-                        em_end].astype(np.uint8) if self.cloud_file else None
+        clouds = result_discretes[:, :, 0].astype(
+            np.uint8) if self.cloud_file else None
 
         # Unpack cloud mask
         masks = None
@@ -237,6 +251,7 @@ class Ecostress():
         :param no_data_value: How no-data will appear in output ndarray
         :param bounds: New bounds for datasets. If different from image bands, will use a WarpedVRT
         :param algorithm: The resampling algorithm to be used if WarpedVRT
+        :param nprocs: Number of processors used for reading
         :param dtype: dtype of the output Tensor
         """
 
