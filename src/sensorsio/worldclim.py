@@ -176,6 +176,13 @@ class WorldClimData:
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
         dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
         bbox = compute_latlon_bbox_from_region(bounds, crs)
+        pad_factor = 0.05  # enlarge the bbox so that large resolution
+        # factors do not produce bboxes which are
+        # inside the needed region
+        bbox = BoundingBox(bbox.left * (1 - pad_factor),
+                           bbox.bottom * (1 - pad_factor),
+                           bbox.right * (1 + pad_factor),
+                           bbox.top * (1 + pad_factor))
         wc_bbox, src_transform = self.get_wc_for_bbox(bbox, vars)
         dst_wc = np.zeros((wc_bbox.shape[0], dst_size_y, dst_size_x))
         dst_wc, dst_wc_transform = reproject(
