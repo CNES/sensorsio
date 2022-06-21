@@ -148,7 +148,7 @@ class WorldClimData:
                         vars: Optional[List[WorldClimVar]] = None) -> np.array:
         "Get a stack with all the WC vars croped to contain the bbox"
         if vars is None:
-            files = self.climfiles + self.biofiles
+            vars = WorldClimVarAll
         else:
             files = [self.get_file_path(v) for v in vars]
         wcvars: List[np.array] = [
@@ -171,6 +171,8 @@ class WorldClimData:
         """Read the data corresponding to a bounding box and return it
         as a numpy array"""
         assert bounds is not None
+        if vars is None:
+            vars = WorldClimVarAll
         dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
                                    -resolution, bounds.top)
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
@@ -208,6 +210,8 @@ class WorldClimData:
         algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
         dtype: np.dtype = np.float32,
     ) -> xr.Dataset:
+        if vars is None:
+            vars = WorldClimVarAll
         (
             np_wc,
             xcoords,
@@ -215,8 +219,6 @@ class WorldClimData:
             crs,
             transform,
         ) = self.read_as_numpy(vars, crs, resolution, bounds, algorithm, dtype)
-        if vars is None:
-            vars = WorldClimVarAll
         xr_vars: Dict[str, Tuple[List[str], np.ndarray]] = {
             self.get_var_name(var): (["y", "x"], np_wc[idx, :, :])
             for idx, var in enumerate(vars)
