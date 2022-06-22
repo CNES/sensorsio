@@ -25,6 +25,17 @@ def test_wc_var(var, month, fail):
             assert False, f"Failed with {var}, {month}"
 
 
+@pytest.mark.parametrize(
+    "var, month, str_repr",
+    [
+        (WorldClimQuantity.TAVG, 10, "CLIM_TAVG_10"),
+        (WorldClimBio.BIO15, None, "BIO_15"),
+    ],
+)
+def test_wc_var_str(var, month, str_repr):
+    assert str(WorldClimVar(var, month)) == str_repr
+
+
 def test_instantiate_worldclim_data():
     wcd = WorldClimData()
 
