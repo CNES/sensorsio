@@ -4,7 +4,7 @@
 """ Modeling and access tools for WorldClim 2.0 data """
 
 from enum import Enum
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import rasterio as rio
@@ -26,9 +26,7 @@ class WorldClimQuantity(Enum):
     WIND = "wind"
 
 
-WorldClimQuantityAll: List[WorldClimQuantity] = [
-    wcq for wcq in WorldClimQuantity
-]
+WorldClimQuantityAll: List[WorldClimQuantity] = list(WorldClimQuantity)
 
 
 class WorldClimBio(Enum):
@@ -54,7 +52,7 @@ class WorldClimBio(Enum):
     BIO19 = "19"  # Precipitation of Coldest Quarter
 
 
-WorldClimBioAll: List[WorldClimBio] = [wcb for wcb in WorldClimBio]
+WorldClimBioAll: List[WorldClimBio] = list(WorldClimBio)
 
 
 class WorldClimVar:
@@ -66,7 +64,8 @@ class WorldClimVar:
         self.value = var.value
         if (month is None) and isinstance(var, WorldClimBio):
             self.typ = 'bio'
-        elif (1 <= month <= 12) and isinstance(var, WorldClimQuantity):
+        elif month is not None and (1 <= month <= 12) and isinstance(
+                var, WorldClimQuantity):
             self.typ = 'clim'
             self.month = month
         else:
@@ -115,11 +114,12 @@ class WorldClimData:
             self.get_file_path(WorldClimVar(b)) for b in WorldClimBioAll
         ]
 
-        with rio.open(self.climfiles[0]) as ds:
-            self.transform = rio.Affine(ds.transform.a, ds.transform.b,
-                                        ds.transform.c - ds.transform.a / 2,
-                                        ds.transform.d, ds.transform.e,
-                                        ds.transform.f - ds.transform.e / 2)
+        with rio.open(self.climfiles[0]) as clim_ds:
+            self.transform = rio.Affine(
+                clim_ds.transform.a, clim_ds.transform.b,
+                clim_ds.transform.c - clim_ds.transform.a / 2,
+                clim_ds.transform.d, clim_ds.transform.e,
+                clim_ds.transform.f - clim_ds.transform.e / 2)
 
     def crop_to_bbox(self, imfile, bbox):
         "Crop a geotif file using the bbox"
@@ -137,10 +137,10 @@ class WorldClimData:
         return image
 
     def get_var_name(self, var):
+        """ Return the variable name as 30s_tavg_08"""
         if var.typ == 'bio':
             return f"bio_{self.wcres}_{var.value}"
-        else:
-            return f"{self.wcres}_{var.value}_{var.month:02}"
+        return f"{self.wcres}_{var.value}_{var.month:02}"
 
     def get_file_path(self, var: WorldClimVar) -> str:
         """ Return the file path for a variable"""
@@ -148,15 +148,16 @@ class WorldClimData:
         var_name = self.get_var_name(var)
         return f"{self.wcdir}/{self.wcprefix}_{var_name}.tif"
 
-    def get_wc_for_bbox(self,
-                        bbox,
-                        vars: Optional[List[WorldClimVar]] = None) -> np.array:
+    def get_wc_for_bbox(
+        self,
+        bbox,
+        wc_vars: Optional[List[WorldClimVar]] = None
+    ) -> Tuple[np.ndarray, rio.Affine]:
         "Get a stack with all the WC vars croped to contain the bbox"
-        if vars is None:
-            vars = WorldClimVarAll
-        else:
-            files = [self.get_file_path(v) for v in vars]
-        wcvars: List[np.array] = [
+        if wc_vars is None:
+            wc_vars = WorldClimVarAll
+        files = [self.get_file_path(v) for v in wc_vars]
+        wcvars: List[np.ndarray] = [
             self.crop_to_bbox(wc_file, bbox)[0, :, :] for wc_file in files
         ]
         transform = rio.Affine(self.transform.a, self.transform.b, bbox.left,
@@ -165,19 +166,20 @@ class WorldClimData:
 
     def read_as_numpy(
         self,
-        vars: Optional[List[WorldClimVar]] = None,
+        wc_vars: Optional[List[WorldClimVar]] = None,
         crs: str = None,
-        resolution: float = 100,
+        resolution: float = 1000,
         bounds: BoundingBox = None,
         algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.float32,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
-               str]:
+        dtype: np.dtype = np.dtype("float32"),
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, str, rio.Affine]:
         """Read the data corresponding to a bounding box and return it
         as a numpy array"""
         assert bounds is not None
-        if vars is None:
-            vars = WorldClimVarAll
+        if crs is None:
+            crs = self.crs
+        if wc_vars is None:
+            wc_vars = WorldClimVarAll
         dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
                                    -resolution, bounds.top)
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
@@ -190,7 +192,7 @@ class WorldClimData:
                            bbox.bottom * (1 - pad_factor),
                            bbox.right * (1 + pad_factor),
                            bbox.top * (1 + pad_factor))
-        wc_bbox, src_transform = self.get_wc_for_bbox(bbox, vars)
+        wc_bbox, src_transform = self.get_wc_for_bbox(bbox, wc_vars)
         dst_wc = np.zeros((wc_bbox.shape[0], dst_size_y, dst_size_x))
         dst_wc, dst_wc_transform = reproject(
             wc_bbox,
@@ -207,26 +209,29 @@ class WorldClimData:
         return (dst_wc, xcoords, ycoords, crs, dst_wc_transform)
 
     def read_as_xarray(
-        self,
-        vars: Optional[List[WorldClimVar]] = None,
-        crs: str = None,
-        resolution: float = 100,
-        bounds: BoundingBox = None,
-        algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.float32,
+            self,
+            wc_vars: Optional[List[WorldClimVar]] = None,
+            crs: str = None,
+            resolution: float = 100,
+            bounds: BoundingBox = None,
+            algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
+            dtype: np.dtype = np.dtype("float32"),
     ) -> xr.Dataset:
-        if vars is None:
-            vars = WorldClimVarAll
+        """Read the data corresponding to a bounding box and return it
+        as an xarray"""
+        if wc_vars is None:
+            wc_vars = WorldClimVarAll
         (
             np_wc,
             xcoords,
             ycoords,
             crs,
             transform,
-        ) = self.read_as_numpy(vars, crs, resolution, bounds, algorithm, dtype)
+        ) = self.read_as_numpy(wc_vars, crs, resolution, bounds, algorithm,
+                               dtype)
         xr_vars: Dict[str, Tuple[List[str], np.ndarray]] = {
             self.get_var_name(var): (["y", "x"], np_wc[idx, :, :])
-            for idx, var in enumerate(vars)
+            for idx, var in enumerate(wc_vars)
         }
         xarr = xr.Dataset(
             xr_vars,
