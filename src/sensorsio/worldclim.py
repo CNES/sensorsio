@@ -73,6 +73,11 @@ class WorldClimVar:
             raise ValueError("Quantity needs month. Bio does not use month. "
                              "Received {var.value} {month}")
 
+    def __str__(self):
+        if self.typ == 'bio':
+            return f"BIO_{self.value}"
+        return f"CLIM_{self.value.upper()}_{self.month:02}"
+
 
 WorldClimQuantityVarAll: List[WorldClimVar] = [
     WorldClimVar(v, m) for v in WorldClimQuantityAll for m in range(1, 13)
