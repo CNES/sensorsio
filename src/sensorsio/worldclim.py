@@ -96,14 +96,12 @@ class WorldClimData:
     def __init__(
         self,
         wcdir: str = "/datalake/static_aux/worldclim-2.0",
-        wcprefix: str = "wc2.0",
-        crs: str = "+proj=latlong",
     ) -> None:
         self.wcdir = wcdir
-        self.wcprefix = wcprefix
-        self.crs = crs
-        self.wcres = "30s"
-        self.resolution = 30 / 60 / 60  # convert to degrees
+        self.__wcprefix = "wc2.0"
+        self.__crs = "+proj=latlong"
+        self.__wcres = "30s"
+        self.__resolution = 30 / 60 / 60  # convert to degrees
 
         months = range(1, 13)
         self.climfiles = [
@@ -180,7 +178,7 @@ class WorldClimData:
         as a numpy array"""
         assert bounds is not None
         if crs is None:
-            crs = self.crs
+            crs = self.__crs
         if wc_vars is None:
             wc_vars = WorldClimVarAll
         dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
@@ -201,7 +199,7 @@ class WorldClimData:
             wc_bbox,
             destination=dst_wc,
             src_transform=src_transform,
-            src_crs=self.crs,
+            src_crs=self.__crs,
             dst_transform=dst_transform,
             dst_crs=crs,
             resampling=algorithm,
