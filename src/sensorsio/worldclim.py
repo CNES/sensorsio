@@ -31,25 +31,25 @@ WorldClimQuantityAll: List[WorldClimQuantity] = list(WorldClimQuantity)
 
 class WorldClimBio(Enum):
     """ The BIO variables available in the WorldClim data base"""
-    BIO01 = "Annual_Mean_Temp"
-    BIO02 = "Mean_Diurnal_Temp_Range"  # (Mean of monthly (max temp - min temp))
-    BIO03 = "Isothermality"  # Isothermality (BIO2/BIO7) (* 100)
-    BIO04 = "Temp_Seasonality"  # (standard deviation *100)
-    BIO05 = "Max_Temp_Warmest_Month"
-    BIO06 = "Min_Temp_Coldest_Month"
-    BIO07 = "Temp_Annual_Range"  # (BIO05-BIO06)
-    BIO08 = "Mean_Temp_Wettest_Quart"
-    BIO09 = "Mean_Temp_Driest_Quart"
-    BIO10 = "Mean_Temp_Warmest_Quart"
-    BIO11 = "Mean_Temp_Coldest_Quart"
-    BIO12 = "Annual_Prec"
-    BIO13 = "Prec_Wettest_Month"
-    BIO14 = "Prec_Driest_Month"
-    BIO15 = "Prec_Seasonality"  # (Coefficient of Variation)
-    BIO16 = "Prec_Wettest_Quart"
-    BIO17 = "Prec_Driest_Quart"
-    BIO18 = "Prec_Warmest_Quart"
-    BIO19 = "Prec_Coldest_Quart"
+    ANNUAL_MEAN_TEMP = "Annual_Mean_Temp"
+    MEAN_DIURNAL_TEMP_RANGE = "Mean_Diurnal_Temp_Range"  # (Mean of monthly (max temp - min temp))
+    ISOTHERMALITY = "Isothermality"  # Isothermality (BIO2/BIO7) (* 100)
+    TEMP_SEASONALITY = "Temp_Seasonality"  # (standard deviation *100)
+    MAX_TEMP_WARMEST_MONTH = "Max_Temp_Warmest_Month"
+    MIN_TEMP_COLDEST_MONTH = "Min_Temp_Coldest_Month"
+    TEMP_ANNUAL_RANGE = "Temp_Annual_Range"  # (BIO05-BIO06)
+    MEAN_TEMP_WETTEST_QUART = "Mean_Temp_Wettest_Quart"
+    MEAN_TEMP_DRIEST_QUART = "Mean_Temp_Driest_Quart"
+    MEAN_TEMP_WARMEST_QUART = "Mean_Temp_Warmest_Quart"
+    MEAN_TEMP_COLDEST_QUART = "Mean_Temp_Coldest_Quart"
+    ANNUAL_PREC = "Annual_Prec"
+    PREC_WETTEST_MONTH = "Prec_Wettest_Month"
+    PREC_DRIEST_MONTH = "Prec_Driest_Month"
+    PREC_SEASONALITY = "Prec_Seasonality"  # (Coefficient of Variation)
+    PREC_WETTEST_QUART = "Prec_Wettest_Quart"
+    PREC_DRIEST_QUART = "Prec_Driest_Quart"
+    PREC_WARMEST_QUART = "Prec_Warmest_Quart"
+    PREC_COLDEST_QUART = "Prec_Coldest_Quart"
 
 
 WorldClimBioAll: List[WorldClimBio] = list(WorldClimBio)
@@ -74,7 +74,7 @@ class WorldClimVar:
 
     def __str__(self):
         if self.typ == 'bio':
-            return f"BIO_{self.value}"
+            return f"{self.value.upper()}"
         return f"CLIM_{self.value.upper()}_{self.month:02}"
 
 
@@ -139,14 +139,17 @@ class WorldClimData:
     def get_var_name(self, var):
         """ Return the variable name as 30s_tavg_08"""
         if var.typ == 'bio':
-            return f"bio_{self.wcres}_{var.value}"
-        return f"{self.wcres}_{var.value}_{var.month:02}"
+            bio_names = {
+                wcb.value: f"{idx:02}"
+                for idx, wcb in enumerate(WorldClimBio, start=1)
+            }
+            return f"bio_{self.__wcres}_{bio_names[var.value]}"
+        return f"{self.__wcres}_{var.value}_{var.month:02}"
 
     def get_file_path(self, var: WorldClimVar) -> str:
         """ Return the file path for a variable"""
-
         var_name = self.get_var_name(var)
-        return f"{self.wcdir}/{self.wcprefix}_{var_name}.tif"
+        return f"{self.wcdir}/{self.__wcprefix}_{var_name}.tif"
 
     def get_wc_for_bbox(
         self,
