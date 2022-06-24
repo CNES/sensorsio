@@ -31,25 +31,25 @@ WorldClimQuantityAll: List[WorldClimQuantity] = list(WorldClimQuantity)
 
 class WorldClimBio(Enum):
     """ The BIO variables available in the WorldClim data base"""
-    BIO01 = "01"  # Annual Mean Temperature
-    BIO02 = "02"  # Mean Diurnal Range (Mean of monthly (max temp - min temp))
-    BIO03 = "03"  # Isothermality (BIO2/BIO7) (* 100)
-    BIO04 = "04"  # Temperature Seasonality (standard deviation *100)
-    BIO05 = "05"  # Max Temperature of Warmest Month
-    BIO06 = "06"  # Min Temperature of Coldest Month
-    BIO07 = "07"  # Temperature Annual Range (BIO05-BIO06)
-    BIO08 = "08"  # Mean Temperature of Wettest Quarter
-    BIO09 = "09"  # Mean Temperature of Driest Quarter
-    BIO10 = "10"  # Mean Temperature of Warmest Quarter
-    BIO11 = "11"  # Mean Temperature of Coldest Quarter
-    BIO12 = "12"  # Annual Precipitation
-    BIO13 = "13"  # Precipitation of Wettest Month
-    BIO14 = "14"  # Precipitation of Driest Month
-    BIO15 = "15"  # Precipitation Seasonality (Coefficient of Variation)
-    BIO16 = "16"  # Precipitation of Wettest Quarter
-    BIO17 = "17"  # Precipitation of Driest Quarter
-    BIO18 = "18"  # Precipitation of Warmest Quarter
-    BIO19 = "19"  # Precipitation of Coldest Quarter
+    BIO01 = "Annual_Mean_Temp"
+    BIO02 = "Mean_Diurnal_Temp_Range"  # (Mean of monthly (max temp - min temp))
+    BIO03 = "Isothermality"  # Isothermality (BIO2/BIO7) (* 100)
+    BIO04 = "Temp_Seasonality"  # (standard deviation *100)
+    BIO05 = "Max_Temp_Warmest_Month"
+    BIO06 = "Min_Temp_Coldest_Month"
+    BIO07 = "Temp_Annual_Range"  # (BIO05-BIO06)
+    BIO08 = "Mean_Temp_Wettest_Quart"
+    BIO09 = "Mean_Temp_Driest_Quart"
+    BIO10 = "Mean_Temp_Warmest_Quart"
+    BIO11 = "Mean_Temp_Coldest_Quart"
+    BIO12 = "Annual_Prec"
+    BIO13 = "Prec_Wettest_Month"
+    BIO14 = "Prec_Driest_Month"
+    BIO15 = "Prec_Seasonality"  # (Coefficient of Variation)
+    BIO16 = "Prec_Wettest_Quart"
+    BIO17 = "Prec_Driest_Quart"
+    BIO18 = "Prec_Warmest_Quart"
+    BIO19 = "Prec_Coldest_Quart"
 
 
 WorldClimBioAll: List[WorldClimBio] = list(WorldClimBio)
