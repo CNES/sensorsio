@@ -231,7 +231,7 @@ class WorldClimData:
         ) = self.read_as_numpy(wc_vars, crs, resolution, bounds, algorithm,
                                dtype)
         xr_vars: Dict[str, Tuple[List[str], np.ndarray]] = {
-            self.get_var_name(var): (["y", "x"], np_wc[idx, :, :])
+            f"wc_{self.get_var_name(var)}": (["y", "x"], np_wc[idx, :, :])
             for idx, var in enumerate(wc_vars)
         }
         xarr = xr.Dataset(
