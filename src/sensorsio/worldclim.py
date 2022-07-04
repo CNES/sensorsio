@@ -57,7 +57,6 @@ WorldClimBioAll: List[WorldClimBio] = list(WorldClimBio)
 
 class WorldClimVar:
     """ WorldClim variable (either climatic quantity or bio)"""
-
     def __init__(self,
                  var: Union[WorldClimQuantity, WorldClimBio],
                  month: Optional[int] = None):
@@ -92,7 +91,6 @@ WorldClimVarAll: List[
 
 class WorldClimData:
     """ WorldClim data model and reading"""
-
     def __init__(
         self,
         wcdir: str = "/datalake/static_aux/worldclim-2.0",
@@ -123,14 +121,19 @@ class WorldClimData:
 
     def crop_to_bbox(self, imfile, bbox):
         "Crop a geotif file using the bbox"
-        (top, bottom), (left,
-                        right) = rio.transform.rowcol(self.transform,
-                                                      [bbox.left, bbox.right],
-                                                      [bbox.top, bbox.bottom])
-        (left, right) = (min(left, right), max(left, right))
-        (bottom, top) = (max(bottom, top), min(bottom,
-                                               top))  # top is upper left
+        (top_f, bottom_f), (left_f, right_f) = rio.transform.rowcol(
+            self.transform, [bbox.left, bbox.right], [bbox.top, bbox.bottom],
+            op=np.floor)
+        (top_c, bottom_c), (left_c, right_c) = rio.transform.rowcol(
+            self.transform, [bbox.left, bbox.right], [bbox.top, bbox.bottom],
+            op=np.ceil)
 
+        (left, right) = (min(min(left_c, right_c), min(left_f, right_f)),
+                         max(max(left_c, right_c), max(left_f, right_f)))
+        (bottom, top) = (max(max(bottom_c, top_c), max(bottom_f, top_f)),
+                         min(min(bottom_c, top_c), min(bottom_f, top_f)))
+
+        print(left, right, top, bottom)
         with rio.open(imfile) as data_source:
             image = data_source.read(window=((top, bottom), (left, right)))
 
@@ -185,13 +188,6 @@ class WorldClimData:
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
         dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
         bbox = compute_latlon_bbox_from_region(bounds, crs)
-        pad_factor = 0.05  # enlarge the bbox so that large resolution
-        # factors do not produce bboxes which are
-        # inside the needed region
-        bbox = BoundingBox(bbox.left * (1 - pad_factor),
-                           bbox.bottom * (1 - pad_factor),
-                           bbox.right * (1 + pad_factor),
-                           bbox.top * (1 + pad_factor))
         wc_bbox, src_transform = self.get_wc_for_bbox(bbox, wc_vars)
         dst_wc = np.zeros((wc_bbox.shape[0], dst_size_y, dst_size_x))
         dst_wc, dst_wc_transform = reproject(
