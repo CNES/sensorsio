@@ -5,16 +5,18 @@
 This module contains utilities function
 """
 
-from typing import List, Tuple, Union
 import math
+from typing import List, Tuple, Union
+
 import numpy as np
-from rasterio.enums import Resampling
-from rasterio.coords import BoundingBox
-from rasterio.vrt import WarpedVRT
-from rasterio.windows import Window
-from rasterio.warp import transform_bounds
 import rasterio as rio
 from affine import Affine
+from pyproj import Transformer
+from rasterio.coords import BoundingBox
+from rasterio.enums import Resampling
+from rasterio.vrt import WarpedVRT
+from rasterio.warp import transform_bounds
+from rasterio.windows import Window
 
 
 def rgb_render(
@@ -255,11 +257,8 @@ def read_as_numpy(img_files: List[str],
     :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
     :param dtype: dtype of the output Tensor
     :param separate: If True, each WarpedVRT is considered to offer a single band
-    
-    
     TODO
     """
-    #print(f'{bounds=}')
     # Check if we need resampling or not
     need_warped_vrt = (offsets is not None)
     # If we change image bounds
@@ -274,8 +273,6 @@ def read_as_numpy(img_files: List[str],
                 need_warped_vrt = True
             if ds.transform[0] != resolution:
                 need_warped_vrt = True
-
-    #print(f'{need_warped_vrt=}')
 
     # If warped vrts are needed, create them
     if need_warped_vrt:
@@ -295,8 +292,6 @@ def read_as_numpy(img_files: List[str],
 
     # Retrieve actual crs
     crs = datasets[0].crs
-
-    #print(f'{datasets[0].bounds=}')
 
     # Read full img if region is None
     if region is None:
@@ -320,7 +315,6 @@ def read_as_numpy(img_files: List[str],
     # if vrts are bands of the same image
     if separate:
         axis = 1
-
     np_stack = np.stack(
         [ds.read(window=w, masked=True) for (ds, w) in zip(datasets, windows)],
         axis=axis)
@@ -336,7 +330,6 @@ def read_as_numpy(img_files: List[str],
         np_stack[np_stack_mask] = output_no_data_value
 
     # Convert to float before casting to final dtype
-    #print(f'{ds.bounds=}')
     np_stack = np_stack.astype(dtype)
     xcoords = np.arange(
         bounds[0] + windows[0].col_off * resolution,
@@ -348,3 +341,16 @@ def read_as_numpy(img_files: List[str],
         -resolution)
 
     return np_stack, xcoords, ycoords, crs
+
+
+def compute_latlon_bbox_from_region(bounds: BoundingBox,
+                                    crs: str) -> BoundingBox:
+    ul_from = (bounds.left, bounds.top)
+    ur_from = (bounds.right, bounds.top)
+    ll_from = (bounds.left, bounds.bottom)
+    lr_from = (bounds.right, bounds.bottom)
+    x_from = [p[0] for p in [ul_from, ur_from, ll_from, lr_from]]
+    y_from = [p[1] for p in [ul_from, ur_from, ll_from, lr_from]]
+    transformer = Transformer.from_crs(crs, '+proj=latlong')
+    x_to, y_to = transformer.transform(x_from, y_from)
+    return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
