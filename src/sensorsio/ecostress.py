@@ -17,13 +17,18 @@ class Ecostress():
     """
     ECostress dataset
     """
-    def __init__(self, lst_file: str, geom_file: str, cloud_file: str = None):
+    def __init__(self,
+                 lst_file: str,
+                 geom_file: str,
+                 cloud_file: str = None,
+                 rad_file: str = None):
         """
 
         """
         self.lst_file = lst_file
         self.geom_file = geom_file
         self.cloud_file = cloud_file
+        self.rad_file = rad_file
 
         with h5py.File(self.geom_file) as ds:
             # Parse acquisition times
@@ -138,26 +143,40 @@ class Ecostress():
         # Open LST file
         with h5py.File(self.lst_file) as lstDS:
 
+            # Read quality control
+            qc = np.array(lstDS['SDS/QC'][region[0]:region[2],
+                                          region[1]:region[3]].astype(dtype))
+
             if read_lst:
                 # Read LST
                 lst = 0.02 * np.array(
                     lstDS['SDS/LST'][region[0]:region[2],
                                      region[1]:region[3]].astype(dtype))
                 lst[lst == 0] = np.nan
-
                 vois.append(lst)
+                lst_err = 0.04 * np.array(
+                    lstDS['SDS/LST_err'][region[0]:region[2],
+                                         region[1]:region[3]].astype(dtype))
+                lst_err[lst_err == 0] = np.nan
+                vois.append(lst_err)
 
             # Read emissivities
             if read_emissivities:
                 for em in [f'Emis{b}' for b in range(1, 6)]:
-                    em = 0.49 + 0.002 * np.array(
+                    emis = 0.49 + 0.002 * np.array(
                         lstDS[f'SDS/{em}'][region[0]:region[2],
                                            region[1]:region[3]].astype(dtype))
-                    em[em == 0] = np.nan
-                    vois.append(em)
+                    emis[emis == 0] = np.nan
+                    vois.append(emis)
+
+                    em_err = 0.0001 * np.array(lstDS[f'SDS/{em}_err'][
+                        region[0]:region[2],
+                        region[1]:region[3]].astype(dtype))
+                    em_err[em_err == 0] = np.nan
+                    vois.append(em_err)
 
         # Read cloud mask if available
-        vois_discretes = []
+        vois_discretes = [qc]
         if self.cloud_file:
             with h5py.File(self.cloud_file) as cloudDS:
                 cld = np.array(cloudDS['SDS/CloudMask'][
@@ -166,6 +185,17 @@ class Ecostress():
                 # variables as long as we do nearest neighbor
                 # interpolation
                 vois_discretes.append(cld)
+
+        if self.rad_file:
+            with h5py.File(self.rad_file) as radDS:
+                for rad in [f'radiance_{b}' for b in range(1, 6)]:
+                    rad_arr = np.array(radDS[f'Radiance/{rad}']
+                                       [region[0]:region[2],
+                                        region[1]:region[3]].astype(dtype))
+                    rad_arr[rad_arr == -9997] = np.nan
+                    rad_arr[rad_arr == -9998] = np.nan
+                    rad_arr[rad_arr == -9999] = np.nan
+                    vois.append(rad_arr)
         # Stack variables of intereset into a single array
         vois = np.stack(vois, axis=-1)
         vois_discretes = np.stack(vois_discretes, axis=-1)
@@ -200,16 +230,21 @@ class Ecostress():
             nprocs=nprocs)
 
         angles_end = 4 if read_angles else 0
-        lst_end = angles_end + (1 if read_lst else 0)
+        lst_end = angles_end + (2 if read_lst else 0)
+        emis_end = lst_end + (10 if read_emissivities else 0)
 
-        lst = result[:, :, angles_end] if read_lst else None
         angles = result[:, :, :angles_end] if read_angles else None
-        emissivities = result[:, :, lst_end:] if read_emissivities else None
-        clouds = result_discretes[:, :, 0].astype(
+        lst = result[:, :, angles_end:lst_end] if read_lst else None
+        emissivities = result[:, :,
+                              lst_end:emis_end] if read_emissivities else None
+        radiances = result[:, :, emis_end:] if self.rad_file else None
+        qc = result_discretes[:, :, 0].astype(np.uint8)
+        clouds = result_discretes[:, :, 1].astype(
             np.uint8) if self.cloud_file else None
 
         # Unpack cloud mask
         masks = None
+
         if self.cloud_file:
             valid_mask = np.bitwise_and(clouds, 0b00000001) > 0
             cloud_mask = np.logical_or(
@@ -230,7 +265,7 @@ class Ecostress():
         ycoords = np.arange(bounds[3], bounds[3] - nb_rows * resolution,
                             -resolution)
 
-        return lst, emissivities, angles, masks, xcoords, ycoords, crs
+        return lst, emissivities, radiances, angles, qc, masks, xcoords, ycoords, crs
 
     def read_as_xarray(self,
                        crs: str = None,
@@ -255,7 +290,7 @@ class Ecostress():
         :param dtype: dtype of the output Tensor
         """
 
-        lst, emissivities, angles, masks, xcoords, ycoords, crs = self.read_as_numpy(
+        lst, emissivities, radiances, angles, qc, masks, xcoords, ycoords, crs = self.read_as_numpy(
             crs, resolution, region, no_data_value, read_lst, read_angles,
             read_emissivities, bounds, nprocs, dtype)
 
@@ -263,11 +298,18 @@ class Ecostress():
         vars = {}
 
         if lst is not None:
-            vars['LST'] = (['y', 'x'], lst)
+            vars['LST'] = (['y', 'x'], lst[:, :, 0])
+            vars['LST_Err'] = (['y', 'x'], lst[:, :, 1])
 
         if emissivities is not None:
             for i in range(0, 5):
-                vars[f'Emis{i+1}'] = (['y', 'x'], emissivities[:, :, i])
+                vars[f'Emis{i+1}'] = (['y', 'x'], emissivities[:, :, 2 * i])
+                vars[f'Emis{i+1}_Err'] = (['y', 'x'], emissivities[:, :,
+                                                                   2 * i + 1])
+
+        if radiances is not None:
+            for i in range(0, 5):
+                vars[f'Rad{i+1}'] = (['y', 'x'], radiances[:, :, i])
 
         if angles is not None:
             vars['Solar_Azimuth'] = (['y', 'x'], angles[:, :, 0])
@@ -276,6 +318,7 @@ class Ecostress():
             vars['View_Zenith'] = (['y', 'x'], angles[:, :, 3])
 
         if masks is not None:
+            vars['QC'] = (['y', 'x'], qc[:, :])
             vars['Cloud_Mask'] = (['y', 'x'], masks[:, :, 0])
             vars['Land_Mask'] = (['y', 'x'], masks[:, :, 1])
             vars['Sea_Mask'] = (['y', 'x'], masks[:, :, 2])
