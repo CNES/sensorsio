@@ -55,7 +55,7 @@ class Landsat:
         ST_DRAD = 'ST_DRAD'
         ST_ATRAN = 'ST_ATRAN'
         ST_EMIS = 'ST_EMIS'
-        ST_EMISD = 'ST_EMISD'
+        ST_EMSD = 'ST_EMSD'
         ST_CDIST = 'ST_CDIST'
 
     # Aliases
@@ -73,7 +73,7 @@ class Landsat:
     ST_DRAD = Band.ST_DRAD
     ST_ATRAN = Band.ST_ATRAN
     ST_EMIS = Band.ST_EMIS
-    ST_EMISD = Band.ST_EMISD
+    ST_EMSD = Band.ST_EMSD
     ST_CDIST = Band.ST_CDIST
 
     GROUP_SR = [B1, B2, B3, B4, B5, B6, B7]
@@ -107,7 +107,7 @@ class Landsat:
         ST_DRAD: 0.001,
         ST_ATRAN: 0.0001,
         ST_EMIS: 0.0001,
-        ST_EMISD: 0.0001,
+        ST_EMSD: 0.0001,
         ST_CDIST: 0.01
     }
 
@@ -126,7 +126,7 @@ class Landsat:
         ST_DRAD: 0,
         ST_ATRAN: 0,
         ST_EMIS: 0,
-        ST_EMISD: 0,
+        ST_EMSD: 0,
         ST_CDIST: 0
     }
 
@@ -145,7 +145,7 @@ class Landsat:
         ST_DRAD: -9999,
         ST_ATRAN: -9999,
         ST_EMIS: -9999,
-        ST_EMISD: -9999,
+        ST_EMSD: -9999,
         ST_CDIST: -9999
     }
 
