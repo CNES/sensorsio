@@ -209,22 +209,24 @@ class Ecostress():
                                                       nb_cols, nb_rows, bounds)
         swath_def = pyresample.geometry.SwathDefinition(lons=longitude,
                                                         lats=latitude)
+
+        # If resolution is less than 69 (the largest pixel size in both directions), use 69 to determine sigma. Else use target resolution.
+        sigma = (max(resolution, 69.) / np.pi) * np.sqrt(-2 * np.log(0.1))
+        radius = 2 * sigma
+
         result_discretes = pyresample.kd_tree.resample_nearest(
             swath_def,
             vois_discretes,
             area_def,
-            radius_of_influence=3 * resolution,
+            radius_of_influence=radius,
             fill_value=no_data_value,
             nprocs=nprocs)
 
-        # We will compute the gausian weighting by considering an MTF of 0.1
-        sigma = (70 / np.pi) * np.sqrt(-2 * np.log(0.1))
-        radius = np.ceil(70. / resolution)
         result = pyresample.kd_tree.resample_gauss(
             swath_def,
             vois,
             area_def,
-            radius_of_influence=radius * resolution,
+            radius_of_influence=radius,
             sigmas=[sigma for i in range(vois.shape[-1])],
             fill_value=no_data_value,
             nprocs=nprocs)
