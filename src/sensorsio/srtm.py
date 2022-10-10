@@ -45,8 +45,7 @@ def srtm_tiles_from_bbox(bbox: BoundingBox) -> List[SRTMTileId]:
     left = int(np.floor(bbox.left))
     right = int(np.floor(bbox.right))
     return [
-        SRTMTileId(lon, lat)
-        for lat in range(bottom, top + 1)
+        SRTMTileId(lon, lat) for lat in range(bottom, top + 1)
         for lon in range(left, right + 1)
     ]
 
@@ -69,17 +68,17 @@ class DEM:
 def write_dem(dem: DEM, out_file: str):
     """Write a DEM to a geotiff file"""
     with rio.open(
-        out_file,
-        "w",
-        driver="GTiff",
-        height=dem.elevation.shape[0],
-        width=dem.elevation.shape[1],
-        count=3,
-        nodata=-32768.0,
-        dtype=dem.elevation.dtype,
-        compress="lzw",
-        crs=dem.crs,
-        transform=dem.transform,
+            out_file,
+            "w",
+            driver="GTiff",
+            height=dem.elevation.shape[0],
+            width=dem.elevation.shape[1],
+            count=3,
+            nodata=-32768.0,
+            dtype=dem.elevation.dtype,
+            compress="lzw",
+            crs=dem.crs,
+            transform=dem.transform,
     ) as ds:
         ds.write(dem.elevation, 1)
         ds.write(dem.slope, 2)
@@ -102,8 +101,18 @@ class SRTM:
         elevation, transform = self.__build_hgt(tiles)
         elevation = elevation[0, :, :]
         x, y = np.gradient(elevation.astype(np.float16))
-        slope = np.degrees(np.pi / 2.0 - np.arctan(np.sqrt(x * x + y * y)))
-        aspect = np.degrees(np.arctan2(-x, y))
+        slope = np.degrees(np.arctan(np.sqrt(x * x + y * y) /
+                                     30))  # 30m = resolution of SRTM
+        # Aspect unfolding rules from
+        # https://github.com/r-barnes/richdem/blob/603cd9d16164393e49ba8e37322fe82653ed5046/include/richdem/methods/terrain_attributes.hpp#L236
+        aspect = np.rad2deg(np.arctan2(x, -y))
+        lt_0 = aspect < 0
+        gt_90 = aspect > 90
+        remaining = np.logical_and(aspect >= 0, aspect <= 90)
+        aspect[lt_0] = 90 - aspect[lt_0]
+        aspect[gt_90] = 360 - aspect[gt_90] + 90
+        aspect[remaining] = 90 - aspect[remaining]
+
         return DEM(
             elevation.astype(np.int16),
             slope.astype(np.int16),
@@ -128,9 +137,8 @@ class SRTM:
         srtm_tiles = srtm_tiles_from_bbox(bbox)
         return self.get_dem_from_tiles(srtm_tiles)
 
-    def __build_hgt(
-        self, tiles: List[SRTMTileId]
-    ) -> Tuple[np.ndarray, rio.Affine]:
+    def __build_hgt(self,
+                    tiles: List[SRTMTileId]) -> Tuple[np.ndarray, rio.Affine]:
         file_names = [f"{self.base_dir}/{t.name()}.hgt" for t in tiles]
         # Screen unavailable tiles
         file_names = [f for f in file_names if os.path.isfile(f)]
@@ -144,13 +152,11 @@ class SRTM:
         no_data_value: float = np.nan,
         algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
         dtype: np.dtype = np.float32,
-    ) -> Tuple[
-        np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, str
-    ]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+               str]:
         assert bounds is not None
-        dst_transform = rio.Affine(
-            resolution, 0.0, bounds.left, 0.0, -resolution, bounds.top
-        )
+        dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
+                                   -resolution, bounds.top)
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
         dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
         dst_dem = np.zeros((3, dst_size_y, dst_size_x))
@@ -198,16 +204,18 @@ class SRTM:
             ycoords,
             crs,
             transform,
-        ) = self.read_as_numpy(
-            crs, resolution, bounds, no_data_value, algorithm, dtype
-        )
+        ) = self.read_as_numpy(crs, resolution, bounds, no_data_value,
+                               algorithm, dtype)
         vars: Dict[str, Tuple[List[str], np.ndarray]] = {}
         vars["height"] = (["y", "x"], np_arr_height)
         vars["slope"] = (["y", "x"], np_arr_slope)
         vars["aspect"] = (["y", "x"], np_arr_aspect)
         xarr = xr.Dataset(
             vars,
-            coords={"x": xcoords, "y": ycoords},
+            coords={
+                "x": xcoords,
+                "y": ycoords
+            },
             attrs={
                 "crs": crs,
                 "resolution": resolution,
