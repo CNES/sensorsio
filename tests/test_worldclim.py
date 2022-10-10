@@ -61,7 +61,7 @@ def test_crop_to_bbox():
         top=43.35279198479999,
     )
     wc_data = wcd.crop_to_bbox(wcd.climfiles[0], bbox)
-    assert wc_data.shape == (1, 119, 164)
+    assert wc_data.shape == (1, 120, 165)
 
 
 @pytest.mark.parametrize(
