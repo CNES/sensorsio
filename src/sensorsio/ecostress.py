@@ -149,30 +149,32 @@ class Ecostress():
 
             if read_lst:
                 # Read LST
-                lst = 0.02 * np.array(
-                    lstDS['SDS/LST'][region[0]:region[2],
-                                     region[1]:region[3]].astype(dtype))
-                lst[lst == 0] = np.nan
+                lst = np.array(lstDS['SDS/LST'][region[0]:region[2],
+                                                region[1]:region[3]])
+                invalid_mask = lst == 0
+                lst = (0.02 * lst).astype(dtype)
                 vois.append(lst)
-                lst_err = 0.04 * np.array(
-                    lstDS['SDS/LST_err'][region[0]:region[2],
-                                         region[1]:region[3]].astype(dtype))
-                lst_err[lst_err == 0] = np.nan
+
+                lst_err = np.array(lstDS['SDS/LST_err'][region[0]:region[2],
+                                                        region[1]:region[3]])
+                invalid_mask = np.logical_or(invalid_mask, lst_err == 0)
+                lst_err = (0.04 * lst_err).astype(dtype)
                 vois.append(lst_err)
 
             # Read emissivities
             if read_emissivities:
                 for em in [f'Emis{b}' for b in range(1, 6)]:
-                    emis = 0.49 + 0.002 * np.array(
-                        lstDS[f'SDS/{em}'][region[0]:region[2],
-                                           region[1]:region[3]].astype(dtype))
-                    emis[emis == 0] = np.nan
+                    emis = np.array(lstDS[f'SDS/{em}'][region[0]:region[2],
+                                                       region[1]:region[3]])
+                    invalid_mask = np.logical_or(invalid_mask, emis == 0)
+                    emis = (0.49 + 0.002 * emis).astype(dtype)
                     vois.append(emis)
 
-                    em_err = 0.0001 * np.array(lstDS[f'SDS/{em}_err'][
-                        region[0]:region[2],
-                        region[1]:region[3]].astype(dtype))
-                    em_err[em_err == 0] = np.nan
+                    em_err = np.array(
+                        lstDS[f'SDS/{em}_err'][region[0]:region[2],
+                                               region[1]:region[3]])
+                    invalid_mask = np.logical_or(invalid_mask, em_err == 0)
+                    em_err = (0.0001 * em_err).astype(dtype)
                     vois.append(em_err)
 
         # Read cloud mask if available
@@ -189,15 +191,22 @@ class Ecostress():
         if self.rad_file:
             with h5py.File(self.rad_file) as radDS:
                 for rad in [f'radiance_{b}' for b in range(1, 6)]:
-                    rad_arr = np.array(radDS[f'Radiance/{rad}']
-                                       [region[0]:region[2],
-                                        region[1]:region[3]].astype(dtype))
-                    rad_arr[rad_arr == -9997] = np.nan
-                    rad_arr[rad_arr == -9998] = np.nan
-                    rad_arr[rad_arr == -9999] = np.nan
+                    rad_arr = np.array(
+                        radDS[f'Radiance/{rad}'][region[0]:region[2],
+                                                 region[1]:region[3]])
+                    invalid_mask = np.logical_or(
+                        invalid_mask,
+                        np.logical_or(
+                            rad_arr == -9997,
+                            np.logical_or(rad_arr == -9998, rad_arr == -9999)))
+                    rad_arr = rad_arr.astype(dtype)
                     vois.append(rad_arr)
+
         # Stack variables of intereset into a single array
         vois = np.stack(vois, axis=-1)
+        vois = np.ma.masked_array(
+            vois,
+            np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
         vois_discretes = np.stack(vois_discretes, axis=-1)
 
         nb_rows = int(np.floor((bounds[3] - bounds[1]) / resolution))
