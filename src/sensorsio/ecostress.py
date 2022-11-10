@@ -278,11 +278,10 @@ class Ecostress():
 
             masks = np.stack((cloud_mask, land_mask, sea_mask), axis=-1)
 
-        xcoords = np.arange(bounds[0], bounds[0] + nb_cols * resolution,
-                            resolution)
-        ycoords = np.arange(bounds[3], bounds[3] - nb_rows * resolution,
-                            -resolution)
-
+        xcoords = np.linspace(bounds[0] + resolution / 2,
+                              bounds[2] - resolution / 2, area_def.width)
+        ycoords = np.linspace(bounds[3] - resolution / 2,
+                              bounds[1] + resolution / 2, area_def.height)
         return lst, emissivities, radiances, angles, qc, masks, xcoords, ycoords, crs
 
     def read_as_xarray(self,
