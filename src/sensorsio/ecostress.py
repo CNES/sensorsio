@@ -166,14 +166,18 @@ class Ecostress():
                 for em in [f'Emis{b}' for b in range(1, 6)]:
                     emis = np.array(lstDS[f'SDS/{em}'][region[0]:region[2],
                                                        region[1]:region[3]])
-                    invalid_mask = np.logical_or(invalid_mask, emis == 0)
+                    # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
+                    if em not in ('Emis1', 'Emis3'):
+                        invalid_mask = np.logical_or(invalid_mask, emis == 0)
                     emis = (0.49 + 0.002 * emis).astype(dtype)
                     vois.append(emis)
 
                     em_err = np.array(
                         lstDS[f'SDS/{em}_err'][region[0]:region[2],
                                                region[1]:region[3]])
-                    invalid_mask = np.logical_or(invalid_mask, em_err == 0)
+                    # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
+                    if em not in ('Emis1', 'Emis3'):
+                        invalid_mask = np.logical_or(invalid_mask, em_err == 0)
                     em_err = (0.0001 * em_err).astype(dtype)
                     vois.append(em_err)
 
@@ -194,11 +198,14 @@ class Ecostress():
                     rad_arr = np.array(
                         radDS[f'Radiance/{rad}'][region[0]:region[2],
                                                  region[1]:region[3]])
-                    invalid_mask = np.logical_or(
-                        invalid_mask,
-                        np.logical_or(
-                            rad_arr == -9997,
-                            np.logical_or(rad_arr == -9998, rad_arr == -9999)))
+                    # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
+                    if rad not in ('radiance_1', 'radiance_3'):
+                        invalid_mask = np.logical_or(
+                            invalid_mask,
+                            np.logical_or(
+                                rad_arr == -9997,
+                                np.logical_or(rad_arr == -9998,
+                                              rad_arr == -9999)))
                     rad_arr = rad_arr.astype(dtype)
                     vois.append(rad_arr)
 
