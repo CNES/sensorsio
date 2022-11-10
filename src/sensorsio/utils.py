@@ -141,8 +141,8 @@ def create_warped_vrt(filename: str,
 
         # Compute optimized transform wrt. resolution and new crs
         left, bottom, right, top = target_bounds
-        dst_width = (right - left) / resolution
-        dst_height = (top - bottom) / resolution
+        dst_width = int(np.floor((right - left) / resolution))
+        dst_height = int(np.floor((top - bottom) / resolution))
         dst_transform = Affine(resolution, 0.0, left, 0.0, -resolution, top)
 
         vrt_options = {
@@ -200,10 +200,10 @@ def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
 
     :return: The snapped bounding box as a BoundingBox object
     """
-    left = align * np.floor(bb[0] / align)
-    right = align * np.ceil(bb[2] / align)
-    bottom = align * np.floor(bb[1] / align)
-    top = align * np.ceil(bb[3] / align)
+    left = align * np.floor(2 * bb[0] / align) / 2
+    right = left + align * (1 + np.floor((bb[2] - bb[0]) / align))
+    bottom = align * np.floor(2 * bb[1] / align) / 2
+    top = bottom + align * (1 + np.floor((bb[3] - bb[1]) / align))
     return BoundingBox(left=left, bottom=bottom, right=right, top=top)
 
 
@@ -331,14 +331,16 @@ def read_as_numpy(img_files: List[str],
 
     # Convert to float before casting to final dtype
     np_stack = np_stack.astype(dtype)
-    xcoords = np.arange(
-        bounds[0] + windows[0].col_off * resolution,
-        bounds[0] + (windows[0].col_off + np_stack.shape[3]) * resolution,
-        resolution)
-    ycoords = np.arange(
-        bounds[3] - windows[0].row_off * resolution,
-        bounds[3] - (windows[0].row_off + np_stack.shape[2]) * resolution,
-        -resolution)
+
+    xcoords = np.linspace(
+        bounds[0] + (0.5 + windows[0].col_off) * resolution, bounds[0] +
+        (windows[0].col_off + np_stack.shape[3] - 0.5) * resolution,
+        np_stack.shape[3])
+
+    ycoords = np.linspace(
+        bounds[3] - (windows[0].row_off + 0.5) * resolution, bounds[3] -
+        (windows[0].row_off + np_stack.shape[2] - 0.5) * resolution,
+        np_stack.shape[2])
 
     return np_stack, xcoords, ycoords, crs
 

@@ -201,8 +201,12 @@ class WorldClimData:
             resampling=algorithm,
         )
         dst_wc = dst_wc.astype(dtype)
-        xcoords = np.arange(bounds.left, bounds.right, resolution)
-        ycoords = np.arange(bounds.top, bounds.bottom, -resolution)
+
+        xcoords = np.linspace(bounds.left + resolution / 2,
+                              bounds.right - resolution / 2, dst_size_x)
+        ycoords = np.linspace(bounds.top - resolution / 2,
+                              bounds.bottom + resolution / 2, dst_size_y)
+
         return (dst_wc, xcoords, ycoords, crs, dst_wc_transform)
 
     def read_as_xarray(
