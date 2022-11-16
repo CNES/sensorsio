@@ -165,10 +165,10 @@ class Master():
         for e in range(5):
             vars[f'Emis{e+1}'] = (['y', 'x'], emis[:, :, e])
 
-        vars['Solar_Azimuth'] = (['y', 'x'], angles[:, :, 0])
-        vars['Solar_Zenith'] = (['y', 'x'], angles[:, :, 1])
-        vars['View_Azimuth'] = (['y', 'x'], angles[:, :, 2])
-        vars['View_Zenith'] = (['y', 'x'], angles[:, :, 3])
+        vars['Solar_Azimuth'] = (['y', 'x'], angles[:, :, 3])
+        vars['Solar_Zenith'] = (['y', 'x'], angles[:, :, 2])
+        vars['View_Azimuth'] = (['y', 'x'], angles[:, :, 1])
+        vars['View_Zenith'] = (['y', 'x'], angles[:, :, 0])
 
         xarr = xr.Dataset(vars,
                           coords={
