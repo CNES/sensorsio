@@ -18,6 +18,11 @@ from rasterio.vrt import WarpedVRT
 from rasterio.warp import transform_bounds
 from rasterio.windows import Window
 
+import time
+from pyresample import geometry, kd_tree
+from functools import partial
+from concurrent.futures import ThreadPoolExecutor
+
 
 def rgb_render(
         data: np.ndarray,
@@ -209,7 +214,7 @@ def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
 
 def bb_common(bounds: List[BoundingBox],
               src_crs: List[str],
-              snap: float = 20,
+              snap: float = None,
               target_crs: str = None):
     """
     Compute the common bounding box between a set of images.
@@ -235,7 +240,8 @@ def bb_common(bounds: List[BoundingBox],
     # Intersect all boxes
     box = bb_intersect(boxes)
     # Snap to grid
-    box = bb_snap(box, align=snap)
+    if snap is not None:
+        box = bb_snap(box, align=snap)
     return box, target_crs
 
 
@@ -356,3 +362,107 @@ def compute_latlon_bbox_from_region(bounds: BoundingBox,
     transformer = Transformer.from_crs(crs, '+proj=latlong')
     x_to, y_to = transformer.transform(x_from, y_from)
     return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
+
+
+def swath_resample(latitudes: np.ndarray,
+                   longitudes: np.ndarray,
+                   target_crs: str,
+                   target_bounds: rio.coords.BoundingBox,
+                   target_resolution: float,
+                   sigma: float,
+                   nprocs: int = 6,
+                   discrete_variables: np.ndarray = None,
+                   continuous_variables: np.ndarray = None,
+                   split_size: int = 1000,
+                   fill_value: float = np.nan):
+    """
+    """
+
+    nb_cols = int(
+        np.round(
+            (target_bounds.right - target_bounds.left - target_resolution) /
+            target_resolution))
+    nb_rows = int(
+        np.round(
+            (target_bounds.top - target_bounds.bottom - target_resolution) /
+            target_resolution))
+
+    print(nb_rows, nb_cols)
+
+    # Define swath
+    swath_def = geometry.SwathDefinition(lons=longitudes, lats=latitudes)
+
+    start = time.perf_counter()
+
+    # Define target area
+    area_def = geometry.AreaDefinition('area', 'area', target_crs, target_crs,
+                                       nb_cols, nb_rows, target_bounds)
+    print(area_def)
+
+    # Preprocess grid
+    valid_input, valid_output, index_array, distance_array = kd_tree.get_neighbour_info(
+        swath_def,
+        area_def,
+        2 * sigma,
+        nprocs=nprocs,
+        segments=1,
+        reduce_data=True)
+
+    preprocess_milestone = time.perf_counter()
+    print(f'{preprocess_milestone-start=}')
+
+    print(f"Starting a pool with {nprocs} threads")
+    with ThreadPoolExecutor(max_workers=nprocs) as executor:
+        # Use preprocessed grid on discrete variables
+        if discrete_variables is not None:
+            resample_function = partial(kd_tree.get_sample_from_neighbour_info,
+                                        'nn', (nb_rows, nb_cols),
+                                        valid_input_index=valid_input,
+                                        valid_output_index=valid_output,
+                                        index_array=np.take_along_axis(
+                                            index_array,
+                                            np.argmin(distance_array,
+                                                      axis=-1,
+                                                      keepdims=True),
+                                            axis=-1)[:, 0],
+                                        distance_array=None,
+                                        weight_funcs=np.exp,
+                                        fill_value=fill_value)
+            out_dv = executor.map(resample_function, [
+                discrete_variables[:, :, i]
+                for i in range(discrete_variables.shape[-1])
+            ])
+            out_dv = np.stack((d for d in out_dv), axis=-1)
+        else:
+            out_dv = None
+
+        # Use preprocessed grid on continuous variables
+        if continuous_variables is not None:
+            scaled_distances = -(distance_array / sigma)**2
+            resample_function = partial(kd_tree.get_sample_from_neighbour_info,
+                                        'custom', (nb_rows, nb_cols),
+                                        valid_input_index=valid_input,
+                                        valid_output_index=valid_output,
+                                        index_array=index_array,
+                                        distance_array=scaled_distances,
+                                        weight_funcs=np.exp,
+                                        fill_value=fill_value)
+            out_cv = executor.map(resample_function, [
+                continuous_variables[:, :, i]
+                for i in range(continuous_variables.shape[-1])
+            ])
+            out_cv = np.stack((c for c in out_cv), axis=-1)
+        else:
+            out_cv = None
+
+    xcoords = np.linspace(target_bounds[0] + target_resolution / 2,
+                          target_bounds[2] - target_resolution / 2,
+                          area_def.width)
+    ycoords = np.linspace(target_bounds[3] - target_resolution / 2,
+                          target_bounds[1] + target_resolution / 2,
+                          area_def.height)
+
+    end = time.perf_counter()
+    print(f'{end-preprocess_milestone=}')
+
+    return out_dv, out_cv, xcoords, ycoords
