@@ -126,7 +126,7 @@ class Master():
             sigma,
             continuous_variables=vois,
             fill_value=no_data_value,
-            nprocs=nprocs)
+            nthreads=nprocs)
 
         lst = result[:, :, :1]
         emis = result[:, :, 1:6]

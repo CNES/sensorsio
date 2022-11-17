@@ -229,7 +229,7 @@ class Ecostress():
             continuous_variables=vois,
             discrete_variables=vois_discretes,
             fill_value=no_data_value,
-            nprocs=nprocs)
+            nthreads=nprocs)
 
         angles_end = 4 if read_angles else 0
         lst_end = angles_end + (2 if read_lst else 0)
