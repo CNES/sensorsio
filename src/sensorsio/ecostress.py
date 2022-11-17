@@ -7,10 +7,10 @@ import numpy as np
 import pyproj
 import rasterio as rio
 from typing import Tuple, Union
-import pyresample
 import utm
 import dateutil
 import xarray as xr
+from sensorsio import utils
 
 
 class Ecostress():
@@ -216,34 +216,18 @@ class Ecostress():
             np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
         vois_discretes = np.stack(vois_discretes, axis=-1)
 
-        nb_rows = int(np.floor((bounds[3] - bounds[1]) / resolution))
-        nb_cols = int(np.floor((bounds[2] - bounds[0]) / resolution))
-
-        #print(nb_rows, nb_cols)
-
-        area_def = pyresample.geometry.AreaDefinition('test', 'test', crs, crs,
-                                                      nb_cols, nb_rows, bounds)
-        swath_def = pyresample.geometry.SwathDefinition(lons=longitude,
-                                                        lats=latitude)
-
         # If resolution is less than 69 (the largest pixel size in both directions), use 69 to determine sigma. Else use target resolution.
         sigma = (max(resolution, 69.) / np.pi) * np.sqrt(-2 * np.log(0.1))
-        radius = 2 * sigma
 
-        result_discretes = pyresample.kd_tree.resample_nearest(
-            swath_def,
-            vois_discretes,
-            area_def,
-            radius_of_influence=radius,
-            fill_value=no_data_value,
-            nprocs=nprocs)
-
-        result = pyresample.kd_tree.resample_gauss(
-            swath_def,
-            vois,
-            area_def,
-            radius_of_influence=radius,
-            sigmas=[sigma for i in range(vois.shape[-1])],
+        result_discretes, result, xcoords, ycoords = utils.swath_resample(
+            latitude,
+            longitude,
+            crs,
+            bounds,
+            resolution,
+            sigma,
+            continuous_variables=vois,
+            discrete_variables=vois_discretes,
             fill_value=no_data_value,
             nprocs=nprocs)
 
@@ -278,10 +262,6 @@ class Ecostress():
 
             masks = np.stack((cloud_mask, land_mask, sea_mask), axis=-1)
 
-        xcoords = np.linspace(bounds[0] + resolution / 2,
-                              bounds[2] - resolution / 2, area_def.width)
-        ycoords = np.linspace(bounds[3] - resolution / 2,
-                              bounds[1] + resolution / 2, area_def.height)
         return lst, emissivities, radiances, angles, qc, masks, xcoords, ycoords, crs
 
     def read_as_xarray(self,

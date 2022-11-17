@@ -11,7 +11,7 @@ import numpy as np
 from pyhdf.SD import *
 import utm
 import pyproj
-import pyresample
+from sensorsio import utils
 import xarray as xr
 
 
@@ -112,37 +112,25 @@ class Master():
         ],
                         axis=-1)
 
-        nb_rows = int(np.floor((bounds[3] - bounds[1]) / resolution))
-        nb_cols = int(np.floor((bounds[2] - bounds[0]) / resolution))
-
-        area_def = pyresample.geometry.AreaDefinition('test', 'test', crs, crs,
-                                                      nb_cols, nb_rows, bounds)
-        swath_def = pyresample.geometry.SwathDefinition(lons=master_lon,
-                                                        lats=master_lat)
-
         # If resolution is less than 69 (the largest pixel size in both directions)
         # , use 30 to determine sigma. Else use target resolution.
         # Master actual resolution depend on carrier
         sigma = (max(resolution, 30.) / np.pi) * np.sqrt(-2 * np.log(0.1))
-        radius = 2 * sigma
 
-        result = pyresample.kd_tree.resample_gauss(
-            swath_def,
-            vois,
-            area_def,
-            radius_of_influence=radius,
-            sigmas=[sigma for i in range(vois.shape[-1])],
+        _, result, xcoords, ycoords = utils.swath_resample(
+            master_lat,
+            master_lon,
+            crs,
+            bounds,
+            resolution,
+            sigma,
+            continuous_variables=vois,
             fill_value=no_data_value,
             nprocs=nprocs)
 
         lst = result[:, :, :1]
         emis = result[:, :, 1:6]
         angles = result[:, :, 6:]
-
-        xcoords = np.linspace(bounds[0] + resolution / 2,
-                              bounds[2] - resolution / 2, area_def.width)
-        ycoords = np.linspace(bounds[3] - resolution / 2,
-                              bounds[1] + resolution / 2, area_def.height)
 
         return lst, emis, angles, xcoords, ycoords, crs
 

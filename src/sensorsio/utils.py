@@ -18,7 +18,7 @@ from rasterio.vrt import WarpedVRT
 from rasterio.warp import transform_bounds
 from rasterio.windows import Window
 
-import time
+#import time
 from pyresample import geometry, kd_tree
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
@@ -364,20 +364,38 @@ def compute_latlon_bbox_from_region(bounds: BoundingBox,
     return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
 
 
-def swath_resample(latitudes: np.ndarray,
-                   longitudes: np.ndarray,
-                   target_crs: str,
-                   target_bounds: rio.coords.BoundingBox,
-                   target_resolution: float,
-                   sigma: float,
-                   nprocs: int = 6,
-                   discrete_variables: np.ndarray = None,
-                   continuous_variables: np.ndarray = None,
-                   split_size: int = 1000,
-                   fill_value: float = np.nan):
+def swath_resample(
+    latitudes: np.ndarray,
+    longitudes: np.ndarray,
+    target_crs: str,
+    target_bounds: rio.coords.BoundingBox,
+    target_resolution: float,
+    sigma: float,
+    nthreads: int = 6,
+    discrete_variables: np.ndarray = None,
+    continuous_variables: np.ndarray = None,
+    strip_size: int = 1500000,
+    fill_value: float = np.nan
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    """
+    This function wraps and optimizes pyresample in order to resample
+    swath data (i.e. observations indexed by an array of irregular latitudes and longitudes).
 
+    :param latitudes: the array of latitudes of shape (in_height, in_width)
+    :param longitudes: the array of longitudes of shape (in_height, in_width)
+    :param target_crs: the target crs for resampling
+    :param target_bounds: the target bounds for resampling as a rio.coords.BoundingBox object. Note that bounds define the outer edge of edge pixels
+    :param target_resolution: the target resolution
+    :param sigma: Width of the gausian weighting for the resampling
+    :param nthreads: Number of threads that will used. Can be higher than available cpus (but threads increase memory consumption, see strip_size parameter)
+    :param discrete_variables: discrete variables to resample with nearest-neighbors, of shape (in_height, in_width, np_discrete). Can be None
+    :param continuous_variables: continuous variables to resample with gaussian weighting, of shape (in_height, in_width, np_discrete)
+    :param strip_size: Size of strip processed by a single thread, in pixels. Total memory is nthreads * memory required to process strip_size
+    :param fill_value: Value to use for no-data in output arrays
+
+    :return: resampled discrete variables, resampled continuous variables, xcoords, ycoords
+    """
+    # Compute output number of rows and columns
     nb_cols = int(
         np.round(
             (target_bounds.right - target_bounds.left - target_resolution) /
@@ -387,12 +405,10 @@ def swath_resample(latitudes: np.ndarray,
             (target_bounds.top - target_bounds.bottom - target_resolution) /
             target_resolution))
 
-    print(nb_rows, nb_cols)
-
     # Define swath
     swath_def = geometry.SwathDefinition(lons=longitudes, lats=latitudes)
 
-    start = time.perf_counter()
+    #start = time.perf_counter()
 
     # Define target area
     area_def = geometry.AreaDefinition('area', 'area', target_crs, target_crs,
@@ -404,57 +420,114 @@ def swath_resample(latitudes: np.ndarray,
         swath_def,
         area_def,
         2 * sigma,
-        nprocs=nprocs,
+        nthreads=nthreads,
         segments=1,
         reduce_data=True)
 
-    preprocess_milestone = time.perf_counter()
-    print(f'{preprocess_milestone-start=}')
+    # Scale distance by sigma, so that they are ready to be passed to np.exp
+    scaled_distances = -(distance_array / sigma)**2
 
-    print(f"Starting a pool with {nprocs} threads")
-    with ThreadPoolExecutor(max_workers=nprocs) as executor:
-        # Use preprocessed grid on discrete variables
-        if discrete_variables is not None:
-            resample_function = partial(kd_tree.get_sample_from_neighbour_info,
-                                        'nn', (nb_rows, nb_cols),
-                                        valid_input_index=valid_input,
-                                        valid_output_index=valid_output,
-                                        index_array=np.take_along_axis(
-                                            index_array,
-                                            np.argmin(distance_array,
-                                                      axis=-1,
-                                                      keepdims=True),
-                                            axis=-1)[:, 0],
-                                        distance_array=None,
-                                        weight_funcs=np.exp,
-                                        fill_value=fill_value)
-            out_dv = executor.map(resample_function, [
-                discrete_variables[:, :, i]
-                for i in range(discrete_variables.shape[-1])
-            ])
-            out_dv = np.stack((d for d in out_dv), axis=-1)
-        else:
-            out_dv = None
+    #preprocess_milestone = time.perf_counter()
+    #print(f'{preprocess_milestone-start=}')
 
-        # Use preprocessed grid on continuous variables
-        if continuous_variables is not None:
-            scaled_distances = -(distance_array / sigma)**2
-            resample_function = partial(kd_tree.get_sample_from_neighbour_info,
-                                        'custom', (nb_rows, nb_cols),
-                                        valid_input_index=valid_input,
-                                        valid_output_index=valid_output,
-                                        index_array=index_array,
-                                        distance_array=scaled_distances,
-                                        weight_funcs=np.exp,
-                                        fill_value=fill_value)
-            out_cv = executor.map(resample_function, [
-                continuous_variables[:, :, i]
-                for i in range(continuous_variables.shape[-1])
-            ])
-            out_cv = np.stack((c for c in out_cv), axis=-1)
-        else:
-            out_cv = None
+    # Start the threads pool
+    with ThreadPoolExecutor(max_workers=nthreads) as executor:
 
+        # Compute the height of the strips and the number of strips
+        strip_size = max(1, int(np.floor(strip_size / nb_cols)))
+        nb_strips = int(np.ceil(nb_rows / float(strip_size)))
+
+        #print(f'{strip_size=}')
+        #print(f'{nb_strips=}')
+
+        # Those list will recieve the outputs of assynchronous map operations by the threads pool
+        out_cvs = []
+        out_dvs = []
+
+        # Iterate on strips
+        for s in range(nb_strips):
+
+            # Compute parameters of current strip
+            current_valid_output = valid_output[
+                s * strip_size * nb_cols:min(nb_rows * nb_cols, (s + 1) *
+                                             strip_size * nb_cols)]
+            current_index_array = index_array[
+                s * strip_size * nb_cols:min(nb_rows * nb_cols, (s + 1) *
+                                             strip_size * nb_cols), :]
+            current_distance_array = distance_array[
+                s * strip_size * nb_cols:min(nb_rows * nb_cols, (s + 1) *
+                                             strip_size * nb_cols), :]
+            current_scaled_distances = scaled_distances[
+                s * strip_size * nb_cols:min(nb_rows * nb_cols, (s + 1) *
+                                             strip_size * nb_cols), :]
+            current_nb_rows = min(nb_rows,
+                                  (s + 1) * strip_size) - s * strip_size
+
+            # Process discrete variables
+            if discrete_variables is not None:
+
+                # Partial allows to use map directly with the pyresample function
+                resample_function = partial(
+                    kd_tree.get_sample_from_neighbour_info,
+                    'nn', (current_nb_rows, nb_cols),
+                    valid_input_index=valid_input,
+                    valid_output_index=current_valid_output,
+                    index_array=np.take_along_axis(current_index_array,
+                                                   np.argmin(
+                                                       current_distance_array,
+                                                       axis=-1,
+                                                       keepdims=True),
+                                                   axis=-1)[:, 0],
+                    distance_array=None,
+                    weight_funcs=np.exp,
+                    fill_value=fill_value)
+
+                # Map the partial function on each input discrete variable spearately
+                # This call is assynchronous (computation runs in background)
+                out_dv = executor.map(resample_function, [
+                    discrete_variables[:, :, i]
+                    for i in range(discrete_variables.shape[-1])
+                ])
+                # Keep tracks of pending results
+                out_dvs.append(out_dv)
+
+            # Process continuous variables
+            if continuous_variables is not None:
+                # Same partial trick, see above
+                resample_function = partial(
+                    kd_tree.get_sample_from_neighbour_info,
+                    'custom', (current_nb_rows, nb_cols),
+                    valid_input_index=valid_input,
+                    valid_output_index=current_valid_output,
+                    index_array=current_index_array,
+                    distance_array=current_scaled_distances,
+                    weight_funcs=np.exp,
+                    fill_value=fill_value)
+
+                # Map call on each variable separately, assynchronous
+                out_cv = executor.map(resample_function, [
+                    continuous_variables[:, :, i]
+                    for i in range(continuous_variables.shape[-1])
+                ])
+                # Keep track of pending results
+                out_cvs.append(out_cv)
+
+    if continuous_variables is not None:
+        # This code concatenates resulting variable for each strip, effectively joining all pending calculation
+        out_cvs = [np.stack([c for c in v], axis=-1) for v in out_cvs]
+        # And then stack strips
+        out_cv = np.concatenate(out_cvs, axis=0)
+    else:
+        out_cv = None
+    if discrete_variables is not None:
+        # This code concatenates resulting variable for each strip, effectively joining all pending calculation
+        out_dvs = [np.stack([c for c in v], axis=-1) for v in out_dvs]
+        # And then stack strips
+        out_dv = np.concatenate(out_dvs, axis=0)
+    else:
+        out_dv = None
+
+    # Compute x and y coordinates at *center* of each output pixels
     xcoords = np.linspace(target_bounds[0] + target_resolution / 2,
                           target_bounds[2] - target_resolution / 2,
                           area_def.width)
@@ -462,7 +535,7 @@ def swath_resample(latitudes: np.ndarray,
                           target_bounds[1] + target_resolution / 2,
                           area_def.height)
 
-    end = time.perf_counter()
-    print(f'{end-preprocess_milestone=}')
+    #end = time.perf_counter()
+    #print(f'{end-preprocess_milestone=}')
 
     return out_dv, out_cv, xcoords, ycoords
