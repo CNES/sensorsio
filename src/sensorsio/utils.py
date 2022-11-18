@@ -476,8 +476,7 @@ def swath_resample(
                     index_array=np.take_along_axis(current_index_array,
                                                    np.argmin(
                                                        current_distance_array,
-                                                       axis=-1,
-                                                       keepdims=True),
+                                                       axis=-1)[:, None],
                                                    axis=-1)[:, 0],
                     distance_array=None,
                     weight_funcs=np.exp,
