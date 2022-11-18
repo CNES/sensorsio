@@ -116,6 +116,7 @@ class Master():
         # , use 30 to determine sigma. Else use target resolution.
         # Master actual resolution depend on carrier
         sigma = (max(resolution, 30.) / np.pi) * np.sqrt(-2 * np.log(0.1))
+        max_neighbours = max(4, int(np.ceil(resolution / 30.))**2)
 
         _, result, xcoords, ycoords = utils.swath_resample(
             master_lat,
@@ -126,7 +127,8 @@ class Master():
             sigma,
             continuous_variables=vois,
             fill_value=no_data_value,
-            nthreads=nprocs)
+            nthreads=nprocs,
+            max_neighbours=max_neighbours)
 
         lst = result[:, :, :1]
         emis = result[:, :, 1:6]

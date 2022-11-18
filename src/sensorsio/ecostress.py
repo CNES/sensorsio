@@ -219,6 +219,9 @@ class Ecostress():
         # If resolution is less than 69 (the largest pixel size in both directions), use 69 to determine sigma. Else use target resolution.
         sigma = (max(resolution, 69.) / np.pi) * np.sqrt(-2 * np.log(0.1))
 
+        # Maximum number of neighbours to consider
+        max_neighbours = max(4, int(np.ceil(resolution / 69.))**2)
+
         result_discretes, result, xcoords, ycoords = utils.swath_resample(
             latitude,
             longitude,
@@ -229,7 +232,8 @@ class Ecostress():
             continuous_variables=vois,
             discrete_variables=vois_discretes,
             fill_value=no_data_value,
-            nthreads=nprocs)
+            nthreads=nprocs,
+            max_neighbours=max_neighbours)
 
         angles_end = 4 if read_angles else 0
         lst_end = angles_end + (2 if read_lst else 0)

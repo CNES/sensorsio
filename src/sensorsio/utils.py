@@ -375,7 +375,8 @@ def swath_resample(
     discrete_variables: np.ndarray = None,
     continuous_variables: np.ndarray = None,
     strip_size: int = 1500000,
-    fill_value: float = np.nan
+    fill_value: float = np.nan,
+    max_neighbours: int = 8
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     This function wraps and optimizes pyresample in order to resample
@@ -392,18 +393,17 @@ def swath_resample(
     :param continuous_variables: continuous variables to resample with gaussian weighting, of shape (in_height, in_width, np_discrete)
     :param strip_size: Size of strip processed by a single thread, in pixels. Total memory is nthreads * memory required to process strip_size
     :param fill_value: Value to use for no-data in output arrays
+    :param max_neighbours: Maximum number of neighbors considered
 
     :return: resampled discrete variables, resampled continuous variables, xcoords, ycoords
     """
     # Compute output number of rows and columns
     nb_cols = int(
-        np.round(
-            (target_bounds.right - target_bounds.left - target_resolution) /
-            target_resolution))
+        np.ceil(
+            (target_bounds.right - target_bounds.left) / target_resolution))
     nb_rows = int(
-        np.round(
-            (target_bounds.top - target_bounds.bottom - target_resolution) /
-            target_resolution))
+        np.ceil(
+            (target_bounds.top - target_bounds.bottom) / target_resolution))
 
     # Define swath
     swath_def = geometry.SwathDefinition(lons=longitudes, lats=latitudes)
@@ -420,9 +420,10 @@ def swath_resample(
         swath_def,
         area_def,
         2 * sigma,
-        nthreads=nthreads,
+        nprocs=nthreads,
         segments=1,
-        reduce_data=True)
+        reduce_data=True,
+        neighbours=max_neighbours)
 
     # Scale distance by sigma, so that they are ready to be passed to np.exp
     scaled_distances = -(distance_array / sigma)**2
