@@ -413,7 +413,7 @@ def swath_resample(
     # Define target area
     area_def = geometry.AreaDefinition('area', 'area', target_crs, target_crs,
                                        nb_cols, nb_rows, target_bounds)
-    print(area_def)
+    #print(area_def)
 
     # Preprocess grid
     valid_input, valid_output, index_array, distance_array = kd_tree.get_neighbour_info(
