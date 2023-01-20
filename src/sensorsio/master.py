@@ -76,6 +76,7 @@ class Master():
 
         # Stick to convention adopted for landsat-8: North-Up, positive to the east, negative to the west
         master_azimuth = master_azimuth - 180.
+        master_sun_azimuth = 180 + master_sun_azimuth
 
         # Handle region
         if region is None:
