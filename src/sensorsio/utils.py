@@ -387,6 +387,7 @@ def swath_resample(
     nthreads: int = 6,
     discrete_variables: np.ndarray = None,
     continuous_variables: np.ndarray = None,
+    cutoff_sigma_mult: float = 2.,
     strip_size: int = 1500000,
     fill_value: float = np.nan,
     max_neighbours: int = 8
@@ -401,6 +402,7 @@ def swath_resample(
     :param target_bounds: the target bounds for resampling as a rio.coords.BoundingBox object. Note that bounds define the outer edge of edge pixels
     :param target_resolution: the target resolution
     :param sigma: Width of the gausian weighting for the resampling
+    :param cutoff_sigma_mult: Sigma multiplier for cutoff distance
     :param nthreads: Number of threads that will used. Can be higher than available cpus (but threads increase memory consumption, see strip_size parameter)
     :param discrete_variables: discrete variables to resample with nearest-neighbors, of shape (in_height, in_width, np_discrete). Can be None
     :param continuous_variables: continuous variables to resample with gaussian weighting, of shape (in_height, in_width, np_discrete)
@@ -432,7 +434,7 @@ def swath_resample(
     valid_input, valid_output, index_array, distance_array = kd_tree.get_neighbour_info(
         swath_def,
         area_def,
-        2 * sigma,
+        cutoff_sigma_mult * sigma,
         nprocs=nthreads,
         segments=1,
         reduce_data=True,
@@ -444,6 +446,7 @@ def swath_resample(
     #preprocess_milestone = time.perf_counter()
     #print(f'{preprocess_milestone-start=}')
 
+    #print(f'{nthreads=}')
     # Start the threads pool
     with ThreadPoolExecutor(max_workers=nthreads) as executor:
 
