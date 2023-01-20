@@ -53,6 +53,7 @@ class Master():
                       bounds: rio.coords.BoundingBox = None,
                       no_data_value: float = np.nan,
                       nprocs: int = 4,
+                      strip_size: int = 375000,
                       dtype: np.dtype = np.float32):
 
         # Read master LST
@@ -72,6 +73,9 @@ class Master():
         master_azimuth = l1b_dataset.select('SensorAzimuthAngle').get()
         master_sun_zenith = l1b_dataset.select('SolarZenithAngle').get()
         master_sun_azimuth = l1b_dataset.select('SolarAzimuthAngle').get()
+
+        # Stick to convention adopted for landsat-8: North-Up, positive to the east, negative to the west
+        master_azimuth = master_azimuth - 180.
 
         # Handle region
         if region is None:
@@ -112,6 +116,11 @@ class Master():
         ],
                         axis=-1)
 
+        invalid_mask = ~(master_lst > 0)
+        vois = np.ma.masked_array(
+            vois,
+            np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
+
         # If resolution is less than 69 (the largest pixel size in both directions)
         # , use 30 to determine sigma. Else use target resolution.
         # Master actual resolution depend on carrier
@@ -125,9 +134,11 @@ class Master():
             bounds,
             resolution,
             sigma,
+            cutoff_sigma_mult=3.,
             continuous_variables=vois,
             fill_value=no_data_value,
             nthreads=nprocs,
+            strip_size=strip_size,
             max_neighbours=max_neighbours)
 
         lst = result[:, :, :1]
@@ -143,10 +154,12 @@ class Master():
                        bounds: rio.coords.BoundingBox = None,
                        no_data_value: float = np.nan,
                        nprocs: int = 4,
+                       strip_size: int = 375000,
                        dtype: np.dtype = np.float32):
 
         lst, emis, angles, xcoords, ycoords, crs = self.read_as_numpy(
-            crs, resolution, region, bounds, no_data_value, nprocs, dtype)
+            crs, resolution, region, bounds, no_data_value, nprocs, strip_size,
+            dtype)
 
         # Build variables for xarray
         vars = {}

@@ -68,6 +68,7 @@ class Ecostress():
         read_emissivities: bool = True,
         bounds: rio.coords.BoundingBox = None,
         nprocs: int = 4,
+        strip_size: int = 375000,
         dtype: np.dtype = np.float32
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
         """
@@ -138,6 +139,12 @@ class Ecostress():
                     angle_array = np.array(geomDS[f'Geolocation/{angle}']
                                            [region[0]:region[2],
                                             region[1]:region[3]].astype(dtype))
+                    ## Stick to convention adopted for landsat-8: North-Up, positive to the east, negative to the west
+                    if angle == 'solar_azimuth' or angle == 'view_azimuth':
+                        angle_array = np.where(angle_array > 180.,
+                                               angle_array - 360., angle_array)
+                    if angle == 'solar_azimuth':
+                        angle_array = 180 + angle_array
                     vois.append(angle_array)
 
         # Open LST file
@@ -151,7 +158,7 @@ class Ecostress():
                 # Read LST
                 lst = np.array(lstDS['SDS/LST'][region[0]:region[2],
                                                 region[1]:region[3]])
-                invalid_mask = lst == 0
+                invalid_mask = ~(lst > 0)
                 lst = (0.02 * lst).astype(dtype)
                 vois.append(lst)
 
@@ -215,6 +222,10 @@ class Ecostress():
             vois,
             np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
         vois_discretes = np.stack(vois_discretes, axis=-1)
+        vois_discretes = np.ma.masked_array(
+            vois_discretes,
+            np.stack([invalid_mask for i in range(vois_discretes.shape[-1])],
+                     axis=-1))
 
         # If resolution is less than 69 (the largest pixel size in both directions), use 69 to determine sigma. Else use target resolution.
         sigma = (max(resolution, 69.) / np.pi) * np.sqrt(-2 * np.log(0.1))
@@ -233,6 +244,7 @@ class Ecostress():
             discrete_variables=vois_discretes,
             fill_value=no_data_value,
             nthreads=nprocs,
+            strip_size=strip_size,
             max_neighbours=max_neighbours)
 
         angles_end = 4 if read_angles else 0
@@ -279,6 +291,7 @@ class Ecostress():
                        read_emissivities: bool = True,
                        bounds: rio.coords.BoundingBox = None,
                        nprocs: int = 4,
+                       strip_size: int = 375000,
                        dtype: np.dtype = np.float32):
         """
         :param crs: Projection in which to read the image (will use WarpedVRT)
@@ -293,7 +306,7 @@ class Ecostress():
 
         lst, emissivities, radiances, angles, qc, masks, xcoords, ycoords, crs = self.read_as_numpy(
             crs, resolution, region, no_data_value, read_lst, read_angles,
-            read_emissivities, bounds, nprocs, dtype)
+            read_emissivities, bounds, nprocs, strip_size, dtype)
 
         # Build variables for xarray
         vars = {}
