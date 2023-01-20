@@ -100,7 +100,7 @@ class SRTM:
         """
         elevation, transform = self.__build_hgt(tiles)
         elevation = elevation[0, :, :]
-        x, y = np.gradient(elevation.astype(np.float16))
+        x, y = np.gradient(elevation.astype(np.float32))
         slope = np.degrees(np.arctan(np.sqrt(x * x + y * y) /
                                      30))  # 30m = resolution of SRTM
         # Aspect unfolding rules from
