@@ -364,6 +364,19 @@ def compute_latlon_bbox_from_region(bounds: BoundingBox,
     return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
 
 
+@np.vectorize
+def extract_bitmask(mask: np.ndarray, bit: int = 0) -> np.ndarray:
+    """
+    Extract a binary mask from the nth bit of a bit-encoded mask
+
+    :param mask: the bit encoded mask
+    :param bit: the index of the bit to extract
+    :return: A binary mask of the nth bit of mask, with the same shape
+    """
+    br = np.base_repr(mask)
+    return len(br > bit) and br[bit] == '1'
+
+
 def swath_resample(
     latitudes: np.ndarray,
     longitudes: np.ndarray,
