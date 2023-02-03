@@ -9,6 +9,7 @@ import math
 from typing import List, Tuple, Union
 
 import numpy as np
+import xarray as xr
 import rasterio as rio
 from affine import Affine
 from pyproj import Transformer
@@ -17,8 +18,6 @@ from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 from rasterio.warp import transform_bounds
 from rasterio.windows import Window
-
-#import time
 from pyresample import geometry, kd_tree
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
@@ -364,8 +363,8 @@ def compute_latlon_bbox_from_region(bounds: BoundingBox,
     return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
 
 
-@np.vectorize
-def extract_bitmask(mask: np.ndarray, bit: int = 0) -> np.ndarray:
+def extract_bitmask(mask: Union[xr.DataArray, np.ndarray],
+                    bit: int = 0) -> Union[xr.DataArray, np.ndarray]:
     """
     Extract a binary mask from the nth bit of a bit-encoded mask
 
@@ -373,8 +372,10 @@ def extract_bitmask(mask: np.ndarray, bit: int = 0) -> np.ndarray:
     :param bit: the index of the bit to extract
     :return: A binary mask of the nth bit of mask, with the same shape
     """
-    br = np.base_repr(mask)
-    return len(br > bit) and br[bit] == '1'
+    if type(mask) == xr.DataArray:
+        return mask.dims, mask.values.astype(int) >> bit & 1
+    else:
+        return mask.astype(int) >> bit & 1
 
 
 def swath_resample(
