@@ -358,7 +358,7 @@ def compute_latlon_bbox_from_region(bounds: BoundingBox,
     lr_from = (bounds.right, bounds.bottom)
     x_from = [p[0] for p in [ul_from, ur_from, ll_from, lr_from]]
     y_from = [p[1] for p in [ul_from, ur_from, ll_from, lr_from]]
-    transformer = Transformer.from_crs(crs, '+proj=latlong')
+    transformer = Transformer.from_crs(crs, '+proj=latlong', always_xy=True)
     x_to, y_to = transformer.transform(x_from, y_from)
     return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
 
