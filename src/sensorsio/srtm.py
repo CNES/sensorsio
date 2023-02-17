@@ -160,9 +160,8 @@ class SRTM:
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
         dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
         dst_dem = np.zeros((3, dst_size_y, dst_size_x))
-        dem_handler = SRTM()
         bbox = compute_latlon_bbox_from_region(bounds, crs)
-        srtm_dem = dem_handler.get_dem_for_bbox(bbox)
+        srtm_dem = self.get_dem_for_bbox(bbox)
         dst_dem, dst_dem_transform = reproject(
             srtm_dem.as_stack(),
             destination=dst_dem,
