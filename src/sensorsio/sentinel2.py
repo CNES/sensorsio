@@ -2,23 +2,25 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales
 
-import warnings
-from enum import Enum
-from collections import namedtuple
-import dateutil
-from typing import List, Tuple, Union
 import glob
 import os
+import warnings
+import xml.etree.ElementTree as ET
+from collections import namedtuple
+from enum import Enum
+from typing import List, Tuple, Union
+
+import dateutil
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-import xarray as xr
-import xml.etree.ElementTree as ET
 import rasterio as rio
-from shapely import geometry
-from sensorsio import utils
+import xarray as xr
 from scipy import ndimage
+from shapely import geometry
 from sklearn.linear_model import LinearRegression
+
+from sensorsio import utils
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module='geopandas')
 """
@@ -446,7 +448,8 @@ class Sentinel2:
         bounds: rio.coords.BoundingBox = None,
         algorithm=rio.enums.Resampling.cubic,
         dtype: np.dtype = np.float32
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+               str]:
         """
         Read bands from Sentinel2 products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
