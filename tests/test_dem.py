@@ -1,4 +1,5 @@
 import rasterio as rio
+
 from sensorsio import mgrs, srtm, utils
 
 
@@ -13,12 +14,11 @@ def test_crs_from_mgrs():
 
 
 def test_mgrs_transform():
-    assert mgrs.get_transform_mgrs_tile("31TDH") == rio.Affine(
-        10.0, 0.0, 399960.0, 0.0, -10.0, 4800000.0)
+    assert mgrs.get_transform_mgrs_tile("31TDH") == rio.Affine(10.0, 0.0, 399960.0, 0.0, -10.0,
+                                                               4800000.0)
 
 
 def test_srtm_tiles_from_mgrs_tile():
-
     def build_tile_list(tile):
         return [tid.name() for tid in srtm.get_srtm_tiles_for_mgrs_tile(tile)]
 

@@ -3,7 +3,8 @@ import os
 import pytest
 import rasterio as rio
 from rasterio.coords import BoundingBox
-from sensorsio import mgrs, utils
+
+from sensorsio import mgrs
 from sensorsio.worldclim import (WorldClimBio, WorldClimData,
                                  WorldClimQuantity, WorldClimVar)
 
@@ -94,8 +95,7 @@ def test_get_wc_for_bbox(wc_vars):
     "wc_vars, suffix",
     [
         (None, "all"),
-        ([WorldClimVar(WorldClimQuantity.PREC, m)
-          for m in range(1, 6)], "prec"),
+        ([WorldClimVar(WorldClimQuantity.PREC, m) for m in range(1, 6)], "prec"),
         ([WorldClimVar(wcb) for wcb in WorldClimBio], "bio"),
     ],
 )
@@ -105,13 +105,11 @@ def test_wc_read_as_numpy(wc_vars, suffix):
     resolution = 200.0
     bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
     wcd = WorldClimData()
-    (dst_wc, xcoords, ycoords, crs,
-     dst_wc_transform) = wcd.read_as_numpy(wc_vars=wc_vars,
-                                           crs=crs,
-                                           resolution=resolution,
-                                           bounds=bbox)
-    expected_bands = len(wcd.climfiles +
-                         wcd.biofiles) if wc_vars is None else len(wc_vars)
+    (dst_wc, xcoords, ycoords, crs, dst_wc_transform) = wcd.read_as_numpy(wc_vars=wc_vars,
+                                                                          crs=crs,
+                                                                          resolution=resolution,
+                                                                          bounds=bbox)
+    expected_bands = len(wcd.climfiles + wcd.biofiles) if wc_vars is None else len(wc_vars)
     assert dst_wc.shape[0] == expected_bands
     # Write just 3 channels for simplicity
     dst_wc = dst_wc[:3, :, :]
@@ -133,8 +131,7 @@ def test_wc_read_as_numpy(wc_vars, suffix):
 
 @pytest.mark.parametrize(
     "wc_vars, suffix",
-    [(None, "all"),
-     ([WorldClimVar(WorldClimQuantity.WIND, m) for m in range(1, 6)], "wind")],
+    [(None, "all"), ([WorldClimVar(WorldClimQuantity.WIND, m) for m in range(1, 6)], "wind")],
 )
 def test_wc_read_as_xarray(wc_vars, suffix):
     TILE = "35NKA"
@@ -144,5 +141,4 @@ def test_wc_read_as_xarray(wc_vars, suffix):
     wcd = WorldClimData()
     wcd.read_as_xarray(
         wc_vars=wc_vars, crs=crs, resolution=resolution,
-        bounds=bbox).to_netcdf(
-            f"/work/scratch/{os.environ['USER']}/wc_test_{suffix}.nc")
+        bounds=bbox).to_netcdf(f"/work/scratch/{os.environ['USER']}/wc_test_{suffix}.nc")

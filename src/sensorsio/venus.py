@@ -2,35 +2,38 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales
 
-from enum import Enum
-import dateutil
-from typing import List, Tuple, Union
 import glob
 import os
-import numpy as np
-import xarray as xr
-import rasterio as rio
-import geopandas as gpd
-from sensorsio import utils
+from enum import Enum
+from typing import List, Tuple, Union
 
+import dateutil
+import geopandas as gpd
+import numpy as np
+import rasterio as rio
+import xarray as xr
+
+from sensorsio import utils
 
 """
 This module contains Venus (L2A MAJA) related functions
 """
 
+
 def get_theia_sites():
     """
     Return a dataframe with tiles produced by Theia
     """
-    return gpd.read_file(os.path.join(os.path.dirname(os.path.abspath(__file__)),'data/venus/theia_venus.gpkg')).set_index('Name')
-
+    return gpd.read_file(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     'data/venus/theia_venus.gpkg')).set_index('Name')
 
 
 class Venus:
     """
     Class for Venus L2A (MAJA format) product reading
-    """     
-    def __init__(self, product_dir, offsets:Tuple[float]=None):
+    """
+    def __init__(self, product_dir, offsets: Tuple[float] = None):
         """
         Constructor
         """
@@ -43,7 +46,7 @@ class Venus:
 
         # Get
         self.satellite = Venus.Satellite(self.product_name[0:5])
-                
+
         # Get site
         self.site = self.product_name[33:41]
 
@@ -51,11 +54,11 @@ class Venus:
         self.date = dateutil.parser.parse(self.product_name[9:17])
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
-        
+
         with rio.open(self.build_band_path(Venus.B2)) as ds:
-        # Get bounds
-            self.bounds  = ds.bounds
-        # Get crs
+            # Get bounds
+            self.bounds = ds.bounds
+            # Get crs
             self.crs = ds.crs
 
     def __repr__(self):
@@ -82,7 +85,7 @@ class Venus:
         B10 = 'B10'
         B11 = 'B11'
         B12 = 'B12'
-        
+
     # Aliases
     B1 = Band.B1
     B2 = Band.B2
@@ -97,7 +100,6 @@ class Venus:
     B11 = Band.B11
     B12 = Band.B12
 
-
     # Enum class for Sentinel2 L2A masks
     class Mask(Enum):
         SAT = 'SAT'
@@ -110,8 +112,7 @@ class Venus:
     CLM = Mask.CLM
     EDG = Mask.EDG
     MG2 = Mask.MG2
-    
-    
+
     # Enum class for mask resolutions
     class MaskRes(Enum):
         XS = 'XS'
@@ -132,7 +133,7 @@ class Venus:
     # Aliases for band type
     FRE = BandType.FRE
     SRE = BandType.SRE
-    
+
     # Use of the MTF Values of Sentinel2A-2B except for B1 and B10 set in 0.2
     # MTF
     MTF = {
@@ -147,28 +148,13 @@ class Venus:
         B9: 0.39,
         B10: 0.2,
         B11: 0.21,
-        B12: 0.19}
+        B12: 0.19
+    }
 
     # Resolution
-    RES = {
-        B1: 5,
-        B2: 5,
-        B3: 5,
-        B4: 5,
-        B5: 5,
-        B6: 5,
-        B7: 5,
-        B8: 5,
-        B9: 5,
-        B10: 5,
-        B11: 5,
-        B12: 5}
+    RES = {B1: 5, B2: 5, B3: 5, B4: 5, B5: 5, B6: 5, B7: 5, B8: 5, B9: 5, B10: 5, B11: 5, B12: 5}
 
-    def PSF(
-        self,
-        bands: List[Band],
-        resolution: float = 0.5,
-        half_kernel_width: int = None):
+    def PSF(self, bands: List[Band], resolution: float = 0.5, half_kernel_width: int = None):
         """
         Generate PSF kernels from list of bands
 
@@ -180,12 +166,9 @@ class Venus:
         :return: The kernels as a Tensor of shape
                  [len(bands),2*half_kernel_width+1, 2*half_kernel_width+1]
         """
-        return np.stack([(utils.generate_psf_kernel(resolution,
-                                                    Venus.RES[b],
-                                                    Venus.MTF[b],
+        return np.stack([(utils.generate_psf_kernel(resolution, Venus.RES[b], Venus.MTF[b],
                                                     half_kernel_width)) for b in bands])
 
-        
     def build_xml_path(self) -> str:
         """
         Return path to root xml file
@@ -193,13 +176,11 @@ class Venus:
         p = glob.glob(f"{self.product_dir}/*MTD_ALL.xml")
         # Raise
         if len(p) == 0:
-            raise FileNotFoundError(f"Could not find root XML file in product directory {self.product_dir}")
+            raise FileNotFoundError(
+                f"Could not find root XML file in product directory {self.product_dir}")
         return p[0]
 
-    def build_band_path(
-        self,
-        band: Band,
-        band_type: BandType = FRE) -> str:
+    def build_band_path(self, band: Band, band_type: BandType = FRE) -> str:
         """
         Build path to a band for product
         :param band: The band to build path for as a Sentinel2.Band enum value
@@ -210,13 +191,12 @@ class Venus:
         p = glob.glob(f"{self.product_dir}/*{band_type.value}_{band.value}.tif")
         # Raise
         if len(p) == 0:
-            raise FileNotFoundError(f"Could not find band {band.value} of type {band_type.value} in product directory {self.product_dir}")
+            raise FileNotFoundError(
+                f"Could not find band {band.value} of type {band_type.value} in product directory {self.product_dir}"
+            )
         return p[0]
 
-    def build_mask_path(
-        self,
-        mask: Mask,
-        resolution: MaskRes = XS) -> str:
+    def build_mask_path(self, mask: Mask, resolution: MaskRes = XS) -> str:
         """
         Build path to a band for product
         :param band: The band to build path for as a Sentinel2.Band enum value
@@ -227,22 +207,26 @@ class Venus:
         p = glob.glob(f"{self.product_dir}/MASKS/*{mask.value}_{resolution.value}.tif")
         # Raise
         if len(p) == 0:
-            raise FileNotFoundError(f"Could not find mask {mask.value} of resolution {resolution.value} in product directory {self.product_dir}")
+            raise FileNotFoundError(
+                f"Could not find mask {mask.value} of resolution {resolution.value} in product directory {self.product_dir}"
+            )
         return p[0]
 
-    def read_as_numpy(self,
-                      bands:List[Band],
-                      band_type:BandType = FRE,
-                      masks:List[Mask]=ALL_MASKS,
-                      mask_res:MaskRes = MaskRes.XS,
-                      scale:float=1000,
-                      crs: str=None,
-                      resolution:float = 10,
-                      region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
-                      no_data_value:float=np.nan,
-                      bounds:rio.coords.BoundingBox=None,
-                      algorithm=rio.enums.Resampling.cubic,
-                      dtype:np.dtype=np.float32) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+    def read_as_numpy(
+            self,
+            bands: List[Band],
+            band_type: BandType = FRE,
+            masks: List[Mask] = ALL_MASKS,
+            mask_res: MaskRes = MaskRes.XS,
+            scale: float = 1000,
+            crs: str = None,
+            resolution: float = 10,
+            region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
+            no_data_value: float = np.nan,
+            bounds: rio.coords.BoundingBox = None,
+            algorithm=rio.enums.Resampling.cubic,
+            dtype: np.dtype = np.float32
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
         """
         Read bands from Venus products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -264,59 +248,57 @@ class Venus:
                  the crs as a string
         """
         img_files = [self.build_band_path(b, band_type) for b in bands]
-        np_arr, xcoords, ycoords, crs =  utils.read_as_numpy(img_files,
-                                                             crs=crs,
-                                                             resolution=resolution,
-                                                             offsets=self.offsets,
-                                                             region=region,
-                                                             output_no_data_value = no_data_value,
-                                                             input_no_data_value = -1000,
-                                                             bounds = bounds,
-                                                             algorithm = algorithm,
-                                                             separate=True,
-                                                             dtype = dtype,
-                                                             scale = scale)
+        np_arr, xcoords, ycoords, crs = utils.read_as_numpy(img_files,
+                                                            crs=crs,
+                                                            resolution=resolution,
+                                                            offsets=self.offsets,
+                                                            region=region,
+                                                            output_no_data_value=no_data_value,
+                                                            input_no_data_value=-1000,
+                                                            bounds=bounds,
+                                                            algorithm=algorithm,
+                                                            separate=True,
+                                                            dtype=dtype,
+                                                            scale=scale)
 
         # Skip first dimension
-        np_arr = np_arr[0,...]
+        np_arr = np_arr[0, ...]
 
         # Read masks if needed
-        np_arr_msk=None
-        if len(masks)!=0:
+        np_arr_msk = None
+        if len(masks) != 0:
             mask_files = [self.build_mask_path(m, mask_res) for m in masks]
-            np_arr_msk, _, _, _ =  utils.read_as_numpy(mask_files,
-                                                    crs=crs,
-                                                    resolution=resolution,
-                                                    offsets=self.offsets,
-                                                    region=region,
-                                                    output_no_data_value = no_data_value,
-                                                    input_no_data_value = -1000,
-                                                    bounds = bounds,
-                                                    algorithm = rio.enums.Resampling.nearest,
-                                                    separate=True,
-                                                    dtype = np.uint8,
-                                                    scale = None)
+            np_arr_msk, _, _, _ = utils.read_as_numpy(mask_files,
+                                                      crs=crs,
+                                                      resolution=resolution,
+                                                      offsets=self.offsets,
+                                                      region=region,
+                                                      output_no_data_value=no_data_value,
+                                                      input_no_data_value=-1000,
+                                                      bounds=bounds,
+                                                      algorithm=rio.enums.Resampling.nearest,
+                                                      separate=True,
+                                                      dtype=np.uint8,
+                                                      scale=None)
             # Skip first dimension
-            np_arr_msk = np_arr_msk[0,...]
-        
+            np_arr_msk = np_arr_msk[0, ...]
+
         # Return plain numpy array
         return np_arr, np_arr_msk, xcoords, ycoords, crs
 
-
-
     def read_as_xarray(self,
-                       bands:List[Band],
-                       band_type:BandType = FRE,
-                       masks:List[Mask]=ALL_MASKS,
-                       mask_res:MaskRes = MaskRes.XS,
-                       scale:float=1000,
-                       crs: str=None,
-                       resolution:float = 10,
-                       region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
-                       no_data_value:float=np.nan,
-                       bounds:rio.coords.BoundingBox=None,
+                       bands: List[Band],
+                       band_type: BandType = FRE,
+                       masks: List[Mask] = ALL_MASKS,
+                       mask_res: MaskRes = MaskRes.XS,
+                       scale: float = 1000,
+                       crs: str = None,
+                       resolution: float = 10,
+                       region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
+                       no_data_value: float = np.nan,
+                       bounds: rio.coords.BoundingBox = None,
                        algorithm=rio.enums.Resampling.cubic,
-                       dtype:np.dtype=np.float32) -> xr.Dataset:
+                       dtype: np.dtype = np.float32) -> xr.Dataset:
         """
         Read bands from Venus products as a xarray
 
@@ -335,23 +317,25 @@ class Venus:
         :param dtype: dtype of the output Tensor
         :return: The image pixels as a np.ndarray of shape [bands, width, height]
         """
-        np_arr, np_arr_msk, xcoords, ycoords, crs = self.read_as_numpy(bands, band_type,
-                                                                      masks, mask_res,
-                                                                      scale, crs,
-                                                                      resolution, region,
-                                                                      no_data_value, bounds,
-                                                                      algorithm, dtype)    
+        np_arr, np_arr_msk, xcoords, ycoords, crs = self.read_as_numpy(
+            bands, band_type, masks, mask_res, scale, crs, resolution, region, no_data_value,
+            bounds, algorithm, dtype)
 
         vars = {}
         for i in range(len(bands)):
-            vars[bands[i].value]=(["t", "y", "x"] , np_arr[None,i,...])
+            vars[bands[i].value] = (["t", "y", "x"], np_arr[None, i, ...])
             for i in range(len(masks)):
-                vars[masks[i].value]=(["t", "y", "x"] , np_arr_msk[None,i,...])
-            
-            
+                vars[masks[i].value] = (["t", "y", "x"], np_arr_msk[None, i, ...])
+
         xarr = xr.Dataset(vars,
-                          coords={'t' : [self.date], 'x' : xcoords, 'y':ycoords},
-                          attrs= {'site' : self.site,
-                                  'type' : band_type.value,
-                                  'crs' : crs})
+                          coords={
+                              't': [self.date],
+                              'x': xcoords,
+                              'y': ycoords
+                          },
+                          attrs={
+                              'site': self.site,
+                              'type': band_type.value,
+                              'crs': crs
+                          })
         return xarr

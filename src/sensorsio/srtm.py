@@ -45,8 +45,7 @@ def srtm_tiles_from_bbox(bbox: BoundingBox) -> List[SRTMTileId]:
     left = int(np.floor(bbox.left))
     right = int(np.floor(bbox.right))
     return [
-        SRTMTileId(lon, lat) for lat in range(bottom, top + 1)
-        for lon in range(left, right + 1)
+        SRTMTileId(lon, lat) for lat in range(bottom, top + 1) for lon in range(left, right + 1)
     ]
 
 
@@ -101,8 +100,7 @@ class SRTM:
         elevation, transform = self.__build_hgt(tiles)
         elevation = elevation[0, :, :]
         x, y = np.gradient(elevation.astype(np.float32))
-        slope = np.degrees(np.arctan(np.sqrt(x * x + y * y) /
-                                     30))  # 30m = resolution of SRTM
+        slope = np.degrees(np.arctan(np.sqrt(x * x + y * y) / 30))  # 30m = resolution of SRTM
         # Aspect unfolding rules from
         # https://github.com/r-barnes/richdem/blob/603cd9d16164393e49ba8e37322fe82653ed5046/include/richdem/methods/terrain_attributes.hpp#L236
         aspect = np.rad2deg(np.arctan2(x, -y))
@@ -137,8 +135,7 @@ class SRTM:
         srtm_tiles = srtm_tiles_from_bbox(bbox)
         return self.get_dem_from_tiles(srtm_tiles)
 
-    def __build_hgt(self,
-                    tiles: List[SRTMTileId]) -> Tuple[np.ndarray, rio.Affine]:
+    def __build_hgt(self, tiles: List[SRTMTileId]) -> Tuple[np.ndarray, rio.Affine]:
         file_names = [f"{self.base_dir}/{t.name()}.hgt" for t in tiles]
         # Screen unavailable tiles
         file_names = [f for f in file_names if os.path.isfile(f)]
@@ -152,11 +149,9 @@ class SRTM:
         no_data_value: float = np.nan,
         algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
         dtype: np.dtype = np.float32,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
-               str]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
         assert bounds is not None
-        dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
-                                   -resolution, bounds.top)
+        dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0, -resolution, bounds.top)
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
         dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
         dst_dem = np.zeros((3, dst_size_y, dst_size_x))
@@ -175,10 +170,10 @@ class SRTM:
         np_arr_slope = dst_dem[1, :, :].astype(dtype)
         np_arr_aspect = dst_dem[2, :, :].astype(dtype)
 
-        xcoords = np.linspace(bounds.left + resolution / 2,
-                              bounds.right - resolution / 2, dst_size_x)
-        ycoords = np.linspace(bounds.top - resolution / 2,
-                              bounds.bottom + resolution / 2, dst_size_y)
+        xcoords = np.linspace(bounds.left + resolution / 2, bounds.right - resolution / 2,
+                              dst_size_x)
+        ycoords = np.linspace(bounds.top - resolution / 2, bounds.bottom + resolution / 2,
+                              dst_size_y)
 
         return (
             np_arr_height,
@@ -207,8 +202,7 @@ class SRTM:
             ycoords,
             crs,
             transform,
-        ) = self.read_as_numpy(crs, resolution, bounds, no_data_value,
-                               algorithm, dtype)
+        ) = self.read_as_numpy(crs, resolution, bounds, no_data_value, algorithm, dtype)
         vars: Dict[str, Tuple[List[str], np.ndarray]] = {}
         vars["height"] = (["y", "x"], np_arr_height)
         vars["slope"] = (["y", "x"], np_arr_slope)

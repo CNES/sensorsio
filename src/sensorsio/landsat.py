@@ -2,13 +2,16 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 
-import os, glob
-from typing import List, Union, Tuple
+import glob
+import os
 from enum import Enum
+from typing import List, Tuple, Union
+
 import dateutil
-import rasterio as rio
 import numpy as np
+import rasterio as rio
 import xarray as xr
+
 from sensorsio import utils
 
 
@@ -160,22 +163,20 @@ class Landsat:
         # Raise
         if len(p) == 0:
             raise FileNotFoundError(
-                f"Could not find band {band.value} in product directory {self.product_dir}"
-            )
+                f"Could not find band {band.value} in product directory {self.product_dir}")
         return p[0]
 
     def read_as_numpy(
-        self,
-        bands: List[Band],
-        masks: List[Mask] = ALL_MASKS,
-        crs: str = None,
-        resolution: float = 30,
-        region: Union[Tuple[int, int, int, int],
-                      rio.coords.BoundingBox] = None,
-        no_data_value: float = np.nan,
-        bounds: rio.coords.BoundingBox = None,
-        algorithm=rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.float32
+            self,
+            bands: List[Band],
+            masks: List[Mask] = ALL_MASKS,
+            crs: str = None,
+            resolution: float = 30,
+            region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
+            no_data_value: float = np.nan,
+            bounds: rio.coords.BoundingBox = None,
+            algorithm=rio.enums.Resampling.cubic,
+            dtype: np.dtype = np.float32
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
         """
         Read bands from Sentinel2 products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
@@ -203,16 +204,15 @@ class Landsat:
         # Readn bands
         if len(bands):
             img_files = [self.build_band_path(b) for b in bands]
-            np_arr, xcoords, ycoords, crs = utils.read_as_numpy(
-                img_files,
-                crs=crs,
-                resolution=resolution,
-                region=region,
-                output_no_data_value=no_data_value,
-                bounds=bounds,
-                algorithm=algorithm,
-                separate=True,
-                dtype=dtype)
+            np_arr, xcoords, ycoords, crs = utils.read_as_numpy(img_files,
+                                                                crs=crs,
+                                                                resolution=resolution,
+                                                                region=region,
+                                                                output_no_data_value=no_data_value,
+                                                                bounds=bounds,
+                                                                algorithm=algorithm,
+                                                                separate=True,
+                                                                dtype=dtype)
 
             factors = np.array([self.FACTORS[b] for b in bands])
             shifts = np.array([self.SHIFTS[b] for b in bands])
@@ -220,12 +220,10 @@ class Landsat:
             # Skip first dimension
             np_arr = np_arr[0, ...]
 
-            np_arr_rescaled = (factors[:, None, None] *
-                               np_arr) + shifts[:, None, None]
+            np_arr_rescaled = (factors[:, None, None] * np_arr) + shifts[:, None, None]
 
             for i, b in enumerate(bands):
-                np_arr_rescaled[i, ...][np_arr[i, ...] ==
-                                        self.NO_DATA_FLAGS[b]] = no_data_value
+                np_arr_rescaled[i, ...][np_arr[i, ...] == self.NO_DATA_FLAGS[b]] = no_data_value
             np_arr = np_arr_rescaled
 
         if len(masks):
@@ -250,8 +248,7 @@ class Landsat:
                        masks: List[Mask] = ALL_MASKS,
                        crs: str = None,
                        resolution: float = 30,
-                       region: Union[Tuple[int, int, int, int],
-                                     rio.coords.BoundingBox] = None,
+                       region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
                        no_data_value: float = np.nan,
                        bounds: rio.coords.BoundingBox = None,
                        algorithm=rio.enums.Resampling.cubic,
@@ -271,15 +268,13 @@ class Landsat:
         :return:
         """
         np_arr, np_arr_msk, xcoords, ycoords, crs = self.read_as_numpy(
-            bands, masks, crs, resolution, region, no_data_value, bounds,
-            algorithm, dtype)
+            bands, masks, crs, resolution, region, no_data_value, bounds, algorithm, dtype)
 
         vars = {}
         for i in range(len(bands)):
             vars[bands[i].value] = (["t", "y", "x"], np_arr[None, i, ...])
             for i in range(len(masks)):
-                vars[masks[i].value] = (["t", "y", "x"], np_arr_msk[None, i,
-                                                                    ...])
+                vars[masks[i].value] = (["t", "y", "x"], np_arr_msk[None, i, ...])
 
         xarr = xr.Dataset(vars,
                           coords={

@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales
 
-from enum import Enum
-import dateutil
-from typing import List, Tuple, Union
-import glob
 import os
+from enum import Enum
+from typing import List, Tuple, Union
+
+import dateutil
 import numpy as np
-import xarray as xr
 import rasterio as rio
+import xarray as xr
+
 from sensorsio import utils
 
 """
@@ -21,7 +22,7 @@ class Pleiades:
     """
     Class for Pleiades product reading
     """
-    def __init__(self, product_file:str, offsets:Tuple[float, float]=None):
+    def __init__(self, product_file: str, offsets: Tuple[float, float] = None):
         """
         Constructor
 
@@ -42,16 +43,15 @@ class Pleiades:
         self.date = dateutil.parser.parse(self.product_name[9:17])
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
-        
+
         with rio.open(self.product_file) as ds:
-        # Get bounds
-            self.bounds  = ds.bounds
-        # Get crs
+            # Get bounds
+            self.bounds = ds.bounds
+            # Get crs
             self.crs = ds.crs
 
     def __repr__(self):
         return f'{self.satellite.value}, {self.date}'
-
 
     # Enum class for sensor
     class Satellite(Enum):
@@ -86,8 +86,7 @@ class Pleiades:
     # Resolutions
     RES = {PAN: 0.7, B0: 2.8, B1: 2.8, B2: 2.8, B3: 2.8}
 
-    def PSF(bands: List[Band], resolution: float = 0.5,
-            half_kernel_width: int = None):
+    def PSF(bands: List[Band], resolution: float = 0.5, half_kernel_width: int = None):
         """
         Generate PSF kernels from list of bands
 
@@ -99,20 +98,21 @@ class Pleiades:
         :return: The kernels as a Tensor of shape
                  [len(bands),2*half_kernel_width+1, 2*half_kernel_width+1]
         """
-        return np.stack([utils.generate_psf_kernel(resolution,
-                                                Pleiades.RES[b],
-                                                Pleiades.MTF[b],
-                                                half_kernel_width) for b in bands])
+        return np.stack([
+            utils.generate_psf_kernel(resolution, Pleiades.RES[b], Pleiades.MTF[b],
+                                      half_kernel_width) for b in bands
+        ])
 
-    def read_as_numpy(self,
-                      scale:float=1000,
-                      crs: str=None,
-                      resolution:float = 2,
-                      region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
-                      no_data_value:float=np.nan,
-                      bounds:rio.coords.BoundingBox=None,
-                      algorithm=rio.enums.Resampling.cubic,
-                      dtype:np.dtype=np.float32) -> Tuple[np.ndarray, np.ndarray, np.ndarray, str]:
+    def read_as_numpy(
+            self,
+            scale: float = 1000,
+            crs: str = None,
+            resolution: float = 2,
+            region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
+            no_data_value: float = np.nan,
+            bounds: rio.coords.BoundingBox = None,
+            algorithm=rio.enums.Resampling.cubic,
+            dtype: np.dtype = np.float32) -> Tuple[np.ndarray, np.ndarray, np.ndarray, str]:
         """
         Read bands from Pléiades XS product as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -130,36 +130,34 @@ class Pleiades:
         the y coords as a np.ndarray of shape [height],
         the crs as a string
         """
-        np_arr, xcoords, ycoords, crs =  utils.read_as_numpy([self.product_file],
+        np_arr, xcoords, ycoords, crs = utils.read_as_numpy([self.product_file],
                                                             crs=crs,
                                                             resolution=resolution,
                                                             offsets=self.offsets,
                                                             region=region,
-                                                            output_no_data_value = no_data_value,
-                                                            input_no_data_value = -10000,
-                                                            bounds = bounds,
-                                                            algorithm = algorithm,
+                                                            output_no_data_value=no_data_value,
+                                                            input_no_data_value=-10000,
+                                                            bounds=bounds,
+                                                            algorithm=algorithm,
                                                             separate=False,
-                                                            dtype = dtype,
-                                                            scale = scale)
+                                                            dtype=dtype,
+                                                            scale=scale)
 
         # Skip first dimension
-        np_arr = np_arr[0,...]
+        np_arr = np_arr[0, ...]
 
-        
         # Return plain numpy array
         return np_arr, xcoords, ycoords, crs
 
-
     def read_as_xarray(self,
-                      scale:float=1000,
-                      crs: str=None,
-                      resolution:float = 2,
-                      region:Union[Tuple[int,int,int,int],rio.coords.BoundingBox]=None,
-                      no_data_value:float=np.nan,
-                      bounds:rio.coords.BoundingBox=None,
-                      algorithm=rio.enums.Resampling.cubic,
-                      dtype:np.dtype=np.float32):
+                       scale: float = 1000,
+                       crs: str = None,
+                       resolution: float = 2,
+                       region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
+                       no_data_value: float = np.nan,
+                       bounds: rio.coords.BoundingBox = None,
+                       algorithm=rio.enums.Resampling.cubic,
+                       dtype: np.dtype = np.float32):
         """
         Read bands from Pléiades XS product as xarray Dataset. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -174,18 +172,18 @@ class Pleiades:
         :param dtype: dtype of the output Tensor
         :return: The image pixels as a xarray.Dataset
         """
-        np_arr, xcoords, ycoords, crs = self.read_as_numpy(bands,
-                                                           scale, crs,
-                                                           resolution, region,
-                                                           no_data_value, bounds,
-                                                           algorithm, dtype)    
-        
+        np_arr, xcoords, ycoords, crs = self.read_as_numpy(bands, scale, crs, resolution, region,
+                                                           no_data_value, bounds, algorithm, dtype)
+
         vars = {}
         for i in range(len(bands)):
-            vars[bands[i].value]=(["t", "y", "x"] , np_arr[None,i,...])
-            
-        xarr = xr.Dataset(vars,
-                          coords={'t' : [self.date], 'x' : xcoords, 'y':ycoords},
-                          attrs= {'crs' : crs})
-        return xarr
+            vars[bands[i].value] = (["t", "y", "x"], np_arr[None, i, ...])
 
+        xarr = xr.Dataset(vars,
+                          coords={
+                              't': [self.date],
+                              'x': xcoords,
+                              'y': ycoords
+                          },
+                          attrs={'crs': crs})
+        return xarr

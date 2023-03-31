@@ -3,16 +3,19 @@
 
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 
+import glob
+import os
 from typing import Tuple
-import glob, os
-import pandas as pd
-import rasterio as rio
+
 import numpy as np
-from pyhdf.SD import *
-import utm
+import pandas as pd
 import pyproj
-from sensorsio import utils
+import rasterio as rio
+import utm
 import xarray as xr
+from pyhdf.SD import *
+
+from sensorsio import utils
 
 
 class Master():
@@ -27,10 +30,8 @@ class Master():
         self.l2a_dir = l2a_dir
 
         # Look for appropriate files in l2a_dir
-        self.l2a_emis_file = glob.glob(
-            os.path.join(self.l2a_dir, '*-emissivity_tes.dat'))[0]
-        self.l2a_lst_file = glob.glob(
-            os.path.join(self.l2a_dir, '*-surface_temp.dat'))[0]
+        self.l2a_emis_file = glob.glob(os.path.join(self.l2a_dir, '*-emissivity_tes.dat'))[0]
+        self.l2a_lst_file = glob.glob(os.path.join(self.l2a_dir, '*-surface_temp.dat'))[0]
         self.acquisition_date = pd.to_datetime(self.l1b_file[-26:-18])
 
         self.crs = '+proj=latlon'
@@ -38,9 +39,7 @@ class Master():
         l1b_ds = SD(self.l1b_file)
         master_lat = l1b_ds.select('PixelLatitude').get()
         master_lon = l1b_ds.select('PixelLongitude').get()
-        self.bounds = rio.coords.BoundingBox(master_lon.min(),
-                                             master_lat.min(),
-                                             master_lon.max(),
+        self.bounds = rio.coords.BoundingBox(master_lon.min(), master_lat.min(), master_lon.max(),
                                              master_lat.max())
 
     def __repr__(self):
@@ -93,11 +92,7 @@ class Master():
             _, _, zone, zl = utm.from_latlon(mean_master_lat, mean_master_lon)
 
             south = zl < 'N'
-            crs = pyproj.CRS.from_dict({
-                'proj': 'utm',
-                'zone': zone,
-                'south': south
-            })
+            crs = pyproj.CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south})
 
         # Handle bounds if not available
         if bounds is None:
@@ -106,21 +101,20 @@ class Master():
             min_master_lon = np.min(master_lon)
             max_master_lon = np.max(master_lon)
             transformer = pyproj.Transformer.from_crs('+proj=latlon', crs)
-            (left, bottom, right, top) = transformer.transform_bounds(
-                min_master_lon, min_master_lat, max_master_lon, max_master_lat)
+            (left, bottom, right,
+             top) = transformer.transform_bounds(min_master_lon, min_master_lat, max_master_lon,
+                                                 max_master_lat)
             bounds = rio.coords.BoundingBox(left, bottom, right, top)
 
         vois = np.stack([
-            master_lst, *(master_emissivities[i, ...]
-                          for i in range(5)), master_zenith, master_azimuth,
-            master_sun_zenith, master_sun_azimuth
+            master_lst, *(master_emissivities[i, ...] for i in range(5)), master_zenith,
+            master_azimuth, master_sun_zenith, master_sun_azimuth
         ],
                         axis=-1)
 
         invalid_mask = ~(master_lst > 0)
-        vois = np.ma.masked_array(
-            vois,
-            np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
+        vois = np.ma.masked_array(vois,
+                                  np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
 
         # If resolution is less than 69 (the largest pixel size in both directions)
         # , use 30 to determine sigma. Else use target resolution.
@@ -128,19 +122,18 @@ class Master():
         sigma = (max(resolution, 30.) / np.pi) * np.sqrt(-2 * np.log(0.1))
         max_neighbours = max(4, int(np.ceil(resolution / 30.))**2)
 
-        _, result, xcoords, ycoords = utils.swath_resample(
-            master_lat,
-            master_lon,
-            crs,
-            bounds,
-            resolution,
-            sigma,
-            cutoff_sigma_mult=3.,
-            continuous_variables=vois,
-            fill_value=no_data_value,
-            nthreads=nprocs,
-            strip_size=strip_size,
-            max_neighbours=max_neighbours)
+        _, result, xcoords, ycoords = utils.swath_resample(master_lat,
+                                                           master_lon,
+                                                           crs,
+                                                           bounds,
+                                                           resolution,
+                                                           sigma,
+                                                           cutoff_sigma_mult=3.,
+                                                           continuous_variables=vois,
+                                                           fill_value=no_data_value,
+                                                           nthreads=nprocs,
+                                                           strip_size=strip_size,
+                                                           max_neighbours=max_neighbours)
 
         lst = result[:, :, :1]
         emis = result[:, :, 1:6]
@@ -158,9 +151,9 @@ class Master():
                        strip_size: int = 375000,
                        dtype: np.dtype = np.float32):
 
-        lst, emis, angles, xcoords, ycoords, crs = self.read_as_numpy(
-            crs, resolution, region, bounds, no_data_value, nprocs, strip_size,
-            dtype)
+        lst, emis, angles, xcoords, ycoords, crs = self.read_as_numpy(crs, resolution, region,
+                                                                      bounds, no_data_value, nprocs,
+                                                                      strip_size, dtype)
 
         # Build variables for xarray
         vars = {}

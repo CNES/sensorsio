@@ -57,14 +57,11 @@ WorldClimBioAll: List[WorldClimBio] = list(WorldClimBio)
 
 class WorldClimVar:
     """ WorldClim variable (either climatic quantity or bio)"""
-    def __init__(self,
-                 var: Union[WorldClimQuantity, WorldClimBio],
-                 month: Optional[int] = None):
+    def __init__(self, var: Union[WorldClimQuantity, WorldClimBio], month: Optional[int] = None):
         self.value = var.value
         if (month is None) and isinstance(var, WorldClimBio):
             self.typ = 'bio'
-        elif month is not None and (1 <= month <= 12) and isinstance(
-                var, WorldClimQuantity):
+        elif month is not None and (1 <= month <= 12) and isinstance(var, WorldClimQuantity):
             self.typ = 'clim'
             self.month = month
         else:
@@ -81,12 +78,9 @@ WorldClimQuantityVarAll: List[WorldClimVar] = [
     WorldClimVar(v, m) for v in WorldClimQuantityAll for m in range(1, 13)
 ]
 
-WorldClimBioVarAll: List[WorldClimVar] = [
-    WorldClimVar(wcb) for wcb in WorldClimBio
-]
+WorldClimBioVarAll: List[WorldClimVar] = [WorldClimVar(wcb) for wcb in WorldClimBio]
 
-WorldClimVarAll: List[
-    WorldClimVar] = WorldClimQuantityVarAll + WorldClimBioVarAll
+WorldClimVarAll: List[WorldClimVar] = WorldClimQuantityVarAll + WorldClimBioVarAll
 
 
 class WorldClimData:
@@ -103,33 +97,31 @@ class WorldClimData:
 
         months = range(1, 13)
         self.climfiles = [
-            self.get_file_path(WorldClimVar(cv, m)) for m in months
-            for cv in WorldClimQuantityAll
+            self.get_file_path(WorldClimVar(cv, m)) for m in months for cv in WorldClimQuantityAll
         ]
-        self.biofiles = [
-            self.get_file_path(WorldClimVar(b)) for b in WorldClimBioAll
-        ]
+        self.biofiles = [self.get_file_path(WorldClimVar(b)) for b in WorldClimBioAll]
 
         with rio.open(self.climfiles[0]) as clim_ds:
-            self.transform = rio.Affine(
-                clim_ds.transform.a, clim_ds.transform.b,
-                clim_ds.transform.c - clim_ds.transform.a / 2,
-                clim_ds.transform.d, clim_ds.transform.e,
-                clim_ds.transform.f - clim_ds.transform.e / 2)
+            self.transform = rio.Affine(clim_ds.transform.a, clim_ds.transform.b,
+                                        clim_ds.transform.c - clim_ds.transform.a / 2,
+                                        clim_ds.transform.d, clim_ds.transform.e,
+                                        clim_ds.transform.f - clim_ds.transform.e / 2)
 
     def crop_to_bbox(self, imfile, bbox):
         "Crop a geotif file using the bbox"
-        (top_f, bottom_f), (left_f, right_f) = rio.transform.rowcol(
-            self.transform, [bbox.left, bbox.right], [bbox.top, bbox.bottom],
-            op=np.floor)
-        (top_c, bottom_c), (left_c, right_c) = rio.transform.rowcol(
-            self.transform, [bbox.left, bbox.right], [bbox.top, bbox.bottom],
-            op=np.ceil)
+        (top_f, bottom_f), (left_f, right_f) = rio.transform.rowcol(self.transform,
+                                                                    [bbox.left, bbox.right],
+                                                                    [bbox.top, bbox.bottom],
+                                                                    op=np.floor)
+        (top_c, bottom_c), (left_c, right_c) = rio.transform.rowcol(self.transform,
+                                                                    [bbox.left, bbox.right],
+                                                                    [bbox.top, bbox.bottom],
+                                                                    op=np.ceil)
 
-        (left, right) = (min(min(left_c, right_c), min(left_f, right_f)),
-                         max(max(left_c, right_c), max(left_f, right_f)))
-        (bottom, top) = (max(max(bottom_c, top_c), max(bottom_f, top_f)),
-                         min(min(bottom_c, top_c), min(bottom_f, top_f)))
+        (left, right) = (min(min(left_c, right_c),
+                             min(left_f, right_f)), max(max(left_c, right_c), max(left_f, right_f)))
+        (bottom, top) = (max(max(bottom_c, top_c),
+                             max(bottom_f, top_f)), min(min(bottom_c, top_c), min(bottom_f, top_f)))
 
         print(left, right, top, bottom)
         with rio.open(imfile) as data_source:
@@ -140,10 +132,7 @@ class WorldClimData:
     def get_var_name(self, var):
         """ Return the variable name as 30s_tavg_08"""
         if var.typ == 'bio':
-            bio_names = {
-                wcb.value: f"{idx:02}"
-                for idx, wcb in enumerate(WorldClimBio, start=1)
-            }
+            bio_names = {wcb.value: f"{idx:02}" for idx, wcb in enumerate(WorldClimBio, start=1)}
             return f"bio_{self.__wcres}_{bio_names[var.value]}"
         return f"{self.__wcres}_{var.value}_{var.month:02}"
 
@@ -153,19 +142,16 @@ class WorldClimData:
         return f"{self.wcdir}/{self.__wcprefix}_{var_name}.tif"
 
     def get_wc_for_bbox(
-        self,
-        bbox,
-        wc_vars: Optional[List[WorldClimVar]] = None
-    ) -> Tuple[np.ndarray, rio.Affine]:
+            self,
+            bbox,
+            wc_vars: Optional[List[WorldClimVar]] = None) -> Tuple[np.ndarray, rio.Affine]:
         "Get a stack with all the WC vars croped to contain the bbox"
         if wc_vars is None:
             wc_vars = WorldClimVarAll
         files = [self.get_file_path(v) for v in wc_vars]
-        wcvars: List[np.ndarray] = [
-            self.crop_to_bbox(wc_file, bbox)[0, :, :] for wc_file in files
-        ]
-        transform = rio.Affine(self.transform.a, self.transform.b, bbox.left,
-                               self.transform.d, self.transform.e, bbox.top)
+        wcvars: List[np.ndarray] = [self.crop_to_bbox(wc_file, bbox)[0, :, :] for wc_file in files]
+        transform = rio.Affine(self.transform.a, self.transform.b, bbox.left, self.transform.d,
+                               self.transform.e, bbox.top)
         return np.stack(wcvars, axis=0), transform
 
     def read_as_numpy(
@@ -184,8 +170,7 @@ class WorldClimData:
             crs = self.__crs
         if wc_vars is None:
             wc_vars = WorldClimVarAll
-        dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0,
-                                   -resolution, bounds.top)
+        dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0, -resolution, bounds.top)
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
         dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
         bbox = compute_latlon_bbox_from_region(bounds, crs)
@@ -202,10 +187,10 @@ class WorldClimData:
         )
         dst_wc = dst_wc.astype(dtype)
 
-        xcoords = np.linspace(bounds.left + resolution / 2,
-                              bounds.right - resolution / 2, dst_size_x)
-        ycoords = np.linspace(bounds.top - resolution / 2,
-                              bounds.bottom + resolution / 2, dst_size_y)
+        xcoords = np.linspace(bounds.left + resolution / 2, bounds.right - resolution / 2,
+                              dst_size_x)
+        ycoords = np.linspace(bounds.top - resolution / 2, bounds.bottom + resolution / 2,
+                              dst_size_y)
 
         return (dst_wc, xcoords, ycoords, crs, dst_wc_transform)
 
@@ -228,8 +213,7 @@ class WorldClimData:
             ycoords,
             crs,
             transform,
-        ) = self.read_as_numpy(wc_vars, crs, resolution, bounds, algorithm,
-                               dtype)
+        ) = self.read_as_numpy(wc_vars, crs, resolution, bounds, algorithm, dtype)
         xr_vars: Dict[str, Tuple[List[str], np.ndarray]] = {
             f"wc_{self.get_var_name(var)}": (["y", "x"], np_wc[idx, :, :])
             for idx, var in enumerate(wc_vars)

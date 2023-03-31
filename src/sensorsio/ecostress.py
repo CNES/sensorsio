@@ -2,14 +2,16 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 
+from typing import Tuple, Union
+
+import dateutil
 import h5py
 import numpy as np
 import pyproj
 import rasterio as rio
-from typing import Tuple, Union
 import utm
-import dateutil
 import xarray as xr
+
 from sensorsio import utils
 
 
@@ -17,11 +19,7 @@ class Ecostress():
     """
     ECostress dataset
     """
-    def __init__(self,
-                 lst_file: str,
-                 geom_file: str,
-                 cloud_file: str = None,
-                 rad_file: str = None):
+    def __init__(self, lst_file: str, geom_file: str, cloud_file: str = None, rad_file: str = None):
         """
 
         """
@@ -37,11 +35,9 @@ class Ecostress():
             end_date = str(ds['StandardMetadata/RangeEndingDate'][()])
             end_time = str(ds['StandardMetadata/RangeEndingTime'][()])
 
-            self.start_time = dateutil.parser.parse(start_date[1:-1] + "T" +
-                                                    start_time[1:-2])
+            self.start_time = dateutil.parser.parse(start_date[1:-1] + "T" + start_time[1:-2])
 
-            self.end_time = dateutil.parser.parse(end_date[1:-1] + "T" +
-                                                  end_time[1:-2])
+            self.end_time = dateutil.parser.parse(end_date[1:-1] + "T" + end_time[1:-2])
 
             # Parse bounds
             min_lon = ds['StandardMetadata/WestBoundingCoordinate'][()]
@@ -49,27 +45,25 @@ class Ecostress():
             min_lat = ds['StandardMetadata/SouthBoundingCoordinate'][()]
             max_lat = ds['StandardMetadata/NorthBoundingCoordinate'][()]
 
-            self.bounds = rio.coords.BoundingBox(min_lon, min_lat, max_lon,
-                                                 max_lat)
+            self.bounds = rio.coords.BoundingBox(min_lon, min_lat, max_lon, max_lat)
             self.crs = '+proj=latlon'
 
     def __repr__(self):
         return f'{self.start_time} - {self.end_time}'
 
     def read_as_numpy(
-        self,
-        crs: str = None,
-        resolution: float = 70,
-        region: Union[Tuple[int, int, int, int],
-                      rio.coords.BoundingBox] = None,
-        no_data_value: float = np.nan,
-        read_lst: bool = True,
-        read_angles: bool = True,
-        read_emissivities: bool = True,
-        bounds: rio.coords.BoundingBox = None,
-        nprocs: int = 4,
-        strip_size: int = 375000,
-        dtype: np.dtype = np.float32
+            self,
+            crs: str = None,
+            resolution: float = 70,
+            region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
+            no_data_value: float = np.nan,
+            read_lst: bool = True,
+            read_angles: bool = True,
+            read_emissivities: bool = True,
+            bounds: rio.coords.BoundingBox = None,
+            nprocs: int = 4,
+            strip_size: int = 375000,
+            dtype: np.dtype = np.float32
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
         """
         :param crs: Projection in which to read the image (will use WarpedVRT)
@@ -93,10 +87,8 @@ class Ecostress():
 
         # Read geolocation grids
         with h5py.File(self.geom_file) as geomDS:
-            latitude = np.array(geomDS['Geolocation/latitude'].astype(
-                np.double))
-            longitude = np.array(geomDS['Geolocation/longitude'].astype(
-                np.double))
+            latitude = np.array(geomDS['Geolocation/latitude'].astype(np.double))
+            longitude = np.array(geomDS['Geolocation/longitude'].astype(np.double))
 
             # Handle region
             if region is None:
@@ -113,11 +105,7 @@ class Ecostress():
                 _, _, zone, zl = utm.from_latlon(mean_latitude, mean_longitude)
 
                 south = zl < 'N'
-                crs = pyproj.CRS.from_dict({
-                    'proj': 'utm',
-                    'zone': zone,
-                    'south': south
-                })
+                crs = pyproj.CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south})
 
             # Handle bounds if not available
             if bounds is None:
@@ -126,23 +114,20 @@ class Ecostress():
                 min_longitude = np.min(longitude)
                 max_longitude = np.max(longitude)
                 transformer = pyproj.Transformer.from_crs('+proj=latlon', crs)
-                (left, bottom, right, top) = transformer.transform_bounds(
-                    min_longitude, min_latitude, max_longitude, max_latitude)
+                (left, bottom, right,
+                 top) = transformer.transform_bounds(min_longitude, min_latitude, max_longitude,
+                                                     max_latitude)
                 bounds = rio.coords.BoundingBox(left, bottom, right, top)
 
             # Read angles
             if read_angles:
-                for angle in [
-                        'solar_azimuth', 'solar_zenith', 'view_azimuth',
-                        'view_zenith'
-                ]:
-                    angle_array = np.array(geomDS[f'Geolocation/{angle}']
-                                           [region[0]:region[2],
-                                            region[1]:region[3]].astype(dtype))
+                for angle in ['solar_azimuth', 'solar_zenith', 'view_azimuth', 'view_zenith']:
+                    angle_array = np.array(
+                        geomDS[f'Geolocation/{angle}'][region[0]:region[2],
+                                                       region[1]:region[3]].astype(dtype))
                     ## Stick to convention adopted for landsat-8: North-Up, positive to the east, negative to the west
                     if angle == 'solar_azimuth' or angle == 'view_azimuth':
-                        angle_array = np.where(angle_array > 180.,
-                                               angle_array - 360., angle_array)
+                        angle_array = np.where(angle_array > 180., angle_array - 360., angle_array)
                     if angle == 'solar_azimuth':
                         angle_array = 180 + angle_array
                     vois.append(angle_array)
@@ -151,19 +136,16 @@ class Ecostress():
         with h5py.File(self.lst_file) as lstDS:
 
             # Read quality control
-            qc = np.array(lstDS['SDS/QC'][region[0]:region[2],
-                                          region[1]:region[3]].astype(dtype))
+            qc = np.array(lstDS['SDS/QC'][region[0]:region[2], region[1]:region[3]].astype(dtype))
 
             if read_lst:
                 # Read LST
-                lst = np.array(lstDS['SDS/LST'][region[0]:region[2],
-                                                region[1]:region[3]])
+                lst = np.array(lstDS['SDS/LST'][region[0]:region[2], region[1]:region[3]])
                 invalid_mask = ~(lst > 0)
                 lst = (0.02 * lst).astype(dtype)
                 vois.append(lst)
 
-                lst_err = np.array(lstDS['SDS/LST_err'][region[0]:region[2],
-                                                        region[1]:region[3]])
+                lst_err = np.array(lstDS['SDS/LST_err'][region[0]:region[2], region[1]:region[3]])
                 invalid_mask = np.logical_or(invalid_mask, lst_err == 0)
                 lst_err = (0.04 * lst_err).astype(dtype)
                 vois.append(lst_err)
@@ -171,17 +153,15 @@ class Ecostress():
             # Read emissivities
             if read_emissivities:
                 for em in [f'Emis{b}' for b in range(1, 6)]:
-                    emis = np.array(lstDS[f'SDS/{em}'][region[0]:region[2],
-                                                       region[1]:region[3]])
+                    emis = np.array(lstDS[f'SDS/{em}'][region[0]:region[2], region[1]:region[3]])
                     # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
                     if em not in ('Emis1', 'Emis3'):
                         invalid_mask = np.logical_or(invalid_mask, emis == 0)
                     emis = (0.49 + 0.002 * emis).astype(dtype)
                     vois.append(emis)
 
-                    em_err = np.array(
-                        lstDS[f'SDS/{em}_err'][region[0]:region[2],
-                                               region[1]:region[3]])
+                    em_err = np.array(lstDS[f'SDS/{em}_err'][region[0]:region[2],
+                                                             region[1]:region[3]])
                     # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
                     if em not in ('Emis1', 'Emis3'):
                         invalid_mask = np.logical_or(invalid_mask, em_err == 0)
@@ -192,8 +172,8 @@ class Ecostress():
         vois_discretes = [qc]
         if self.cloud_file:
             with h5py.File(self.cloud_file) as cloudDS:
-                cld = np.array(cloudDS['SDS/CloudMask'][
-                    region[0]:region[2], region[1]:region[3]].astype(dtype))
+                cld = np.array(cloudDS['SDS/CloudMask'][region[0]:region[2],
+                                                        region[1]:region[3]].astype(dtype))
                 # CAUTION: we can resample cloud mask with other
                 # variables as long as we do nearest neighbor
                 # interpolation
@@ -202,30 +182,25 @@ class Ecostress():
         if self.rad_file:
             with h5py.File(self.rad_file) as radDS:
                 for rad in [f'radiance_{b}' for b in range(1, 6)]:
-                    rad_arr = np.array(
-                        radDS[f'Radiance/{rad}'][region[0]:region[2],
-                                                 region[1]:region[3]])
+                    rad_arr = np.array(radDS[f'Radiance/{rad}'][region[0]:region[2],
+                                                                region[1]:region[3]])
                     # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
                     if rad not in ('radiance_1', 'radiance_3'):
                         invalid_mask = np.logical_or(
                             invalid_mask,
-                            np.logical_or(
-                                rad_arr == -9997,
-                                np.logical_or(rad_arr == -9998,
-                                              rad_arr == -9999)))
+                            np.logical_or(rad_arr == -9997,
+                                          np.logical_or(rad_arr == -9998, rad_arr == -9999)))
                     rad_arr = rad_arr.astype(dtype)
                     vois.append(rad_arr)
 
         # Stack variables of intereset into a single array
         vois = np.stack(vois, axis=-1)
-        vois = np.ma.masked_array(
-            vois,
-            np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
+        vois = np.ma.masked_array(vois,
+                                  np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
         vois_discretes = np.stack(vois_discretes, axis=-1)
         vois_discretes = np.ma.masked_array(
             vois_discretes,
-            np.stack([invalid_mask for i in range(vois_discretes.shape[-1])],
-                     axis=-1))
+            np.stack([invalid_mask for i in range(vois_discretes.shape[-1])], axis=-1))
 
         # If resolution is less than 69 (the largest pixel size in both directions), use 69 to determine sigma. Else use target resolution.
         sigma = (max(resolution, 69.) / np.pi) * np.sqrt(-2 * np.log(0.1))
@@ -253,12 +228,10 @@ class Ecostress():
 
         angles = result[:, :, :angles_end] if read_angles else None
         lst = result[:, :, angles_end:lst_end] if read_lst else None
-        emissivities = result[:, :,
-                              lst_end:emis_end] if read_emissivities else None
+        emissivities = result[:, :, lst_end:emis_end] if read_emissivities else None
         radiances = result[:, :, emis_end:] if self.rad_file else None
         qc = result_discretes[:, :, 0].astype(np.uint8)
-        clouds = result_discretes[:, :, 1].astype(
-            np.uint8) if self.cloud_file else None
+        clouds = result_discretes[:, :, 1].astype(np.uint8) if self.cloud_file else None
 
         # Unpack cloud mask
         masks = None
@@ -283,8 +256,7 @@ class Ecostress():
     def read_as_xarray(self,
                        crs: str = None,
                        resolution: float = 70,
-                       region: Union[Tuple[int, int, int, int],
-                                     rio.coords.BoundingBox] = None,
+                       region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
                        no_data_value: float = np.nan,
                        read_lst: bool = True,
                        read_angles: bool = True,
@@ -305,8 +277,8 @@ class Ecostress():
         """
 
         lst, emissivities, radiances, angles, qc, masks, xcoords, ycoords, crs = self.read_as_numpy(
-            crs, resolution, region, no_data_value, read_lst, read_angles,
-            read_emissivities, bounds, nprocs, strip_size, dtype)
+            crs, resolution, region, no_data_value, read_lst, read_angles, read_emissivities,
+            bounds, nprocs, strip_size, dtype)
 
         # Build variables for xarray
         vars = {}
@@ -318,8 +290,7 @@ class Ecostress():
         if emissivities is not None:
             for i in range(0, 5):
                 vars[f'Emis{i+1}'] = (['y', 'x'], emissivities[:, :, 2 * i])
-                vars[f'Emis{i+1}_Err'] = (['y', 'x'], emissivities[:, :,
-                                                                   2 * i + 1])
+                vars[f'Emis{i+1}_Err'] = (['y', 'x'], emissivities[:, :, 2 * i + 1])
 
         if radiances is not None:
             for i in range(0, 5):

@@ -16,8 +16,7 @@ def get_polygon_mgrs_tile(tile: str) -> Polygon:
     """ Get the shapely.Polygon corresponding to a MGRS tile"""
     assert tile[0] != 'T'
     mgrs_df = gpd.read_file(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     'data/sentinel2/mgrs_tiles.shp'))
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/mgrs_tiles.shp'))
     return mgrs_df[mgrs_df.Name == tile].iloc[0].geometry
 
 
@@ -28,11 +27,9 @@ def get_bbox_mgrs_tile(tile: str, latlon: bool = True) -> BoundingBox:
     if latlon:
         return bbox
     else:
-        transformer = Transformer.from_crs('+proj=latlong',
-                                           get_crs_mgrs_tile(tile))
-        (left, right), (bottom,
-                        top) = transformer.transform([bbox.left, bbox.right],
-                                                     [bbox.bottom, bbox.top])
+        transformer = Transformer.from_crs('+proj=latlong', get_crs_mgrs_tile(tile))
+        (left, right), (bottom, top) = transformer.transform([bbox.left, bbox.right],
+                                                             [bbox.bottom, bbox.top])
         return BoundingBox(left, bottom, right, top)
 
 
@@ -53,7 +50,6 @@ def get_crs_mgrs_tile(tile: str) -> CRS:
 def get_transform_mgrs_tile(tile: str) -> rio.Affine:
     """ Get the rasterio.Affine transform for a MGRS tile in its own CRS"""
     ul, ur, ll, lr, _ = get_polygon_mgrs_tile(tile).exterior.coords
-    transformer = Transformer.from_crs('+proj=latlong',
-                                       get_crs_mgrs_tile(tile))
+    transformer = Transformer.from_crs('+proj=latlong', get_crs_mgrs_tile(tile))
     x0, y0 = transformer.transform([ul[0]], [ul[1]])
     return rio.Affine(10.0, 0.0, np.round(x0[0]), 0.0, -10.0, np.round(y0[0]))
