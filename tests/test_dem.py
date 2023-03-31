@@ -1,5 +1,14 @@
-import rasterio as rio
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2023 CESBIO / Centre National d'Etudes Spatiales
+"""
+Test for the SRTM driver
+"""
+import os
+import tempfile
 
+import pytest
+import rasterio as rio
 from sensorsio import mgrs, srtm, utils
 
 
@@ -16,6 +25,16 @@ def test_crs_from_mgrs():
 def test_mgrs_transform():
     assert mgrs.get_transform_mgrs_tile("31TDH") == rio.Affine(10.0, 0.0, 399960.0, 0.0, -10.0,
                                                                4800000.0)
+
+
+def test_get_bbox_mgrs_tile():
+    """
+    """
+    TILE = "31TCJ"
+    crs = mgrs.get_crs_mgrs_tile(TILE)
+    bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
+    assert int((bbox[2] - bbox[0]) / 10.) == 10980
+    assert int((bbox[3] - bbox[1]) / 10.) == 10980
 
 
 def test_srtm_tiles_from_mgrs_tile():
@@ -53,40 +72,53 @@ def test_srtm_tiles_from_mgrs_tile():
     ]
 
 
-def test_generate_dem():
-    dem_handler = srtm.SRTM()
-    dem = dem_handler.get_dem_mgrs_tile("31TDH")
-    with rio.open(
-            "/tmp/dem.tif",
-            "w",
-            driver="GTiff",
-            height=dem.elevation.shape[0],
-            width=dem.elevation.shape[1],
-            count=3,
-            nodata=-32768.0,
-            dtype=dem.elevation.dtype,
-            compress="lzw",
-            crs="+proj=latlong",
-            transform=dem.transform,
-    ) as ds:
-        ds.write(dem.elevation, 1)
-        ds.write(dem.slope, 2)
-        ds.write(dem.aspect, 3)
+def get_srtm_folder() -> str:
+    """
+    Retrieve SRTM folder from env var
+    """
+    return os.path.join(os.environ['SENSORSIO_TEST_DATA_PATH'], 'srtm')
 
 
+@pytest.mark.requires_test_data
 def test_dem_on_mgrs_tile():
+    """
+    Test the dem_on_mgrs_tile helper function as well as the write_dem fonction
+    """
     TILE = "31TDH"
-    s2_dem = srtm.get_dem_mgrs_tile(TILE)
-    srtm.write_dem(s2_dem, f"/tmp/dem_{TILE}.tif")
+    s2_dem = srtm.get_dem_mgrs_tile(TILE, get_srtm_folder())
+
+    assert s2_dem.elevation.shape == (10980, 10980)
+    assert s2_dem.aspect.shape == (10980, 10980)
+    assert s2_dem.slope.shape == (10980, 10980)
+    assert s2_dem.crs == 'EPSG:32631'
+    assert s2_dem.transform == rio.Affine(10., 0, 399960.0, 0, -10., 4800000)
+
+    stack = s2_dem.as_stack()
+
+    assert stack.shape == (3, 10980, 10980)
+
+    # Test the write_dem method
+    with tempfile.NamedTemporaryFile(suffix='.tif') as temporary_file:
+        srtm.write_dem(s2_dem, temporary_file.name)
+        with rio.open(temporary_file.name) as readback_file:
+            print(readback_file)
+            assert readback_file.crs == 'EPSG:32631'
+            assert readback_file.transform == rio.Affine(10., 0, 399960.0, 0, -10., 4800000)
+            assert readback_file.count == 3
+            assert readback_file.height == 10980
+            assert readback_file.width == 10980
 
 
+@pytest.mark.requires_test_data
 def test_dem_read_as_numpy():
-    TILE = "31TDH"
+    TILE = "31TCJ"
     crs = mgrs.get_crs_mgrs_tile(TILE)
     resolution = 100.0
     bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
+    assert int((bbox[2] - bbox[0]) / 10.) == 10980
+
     print("Bounds ", utils.compute_latlon_bbox_from_region(bbox, crs))
-    dem_handler = srtm.SRTM()
+    dem_handler = srtm.SRTM(get_srtm_folder())
     (
         elevation,
         slope,
@@ -96,16 +128,27 @@ def test_dem_read_as_numpy():
         dem_crs,
         dem_transform,
     ) = dem_handler.read_as_numpy(crs, resolution, bbox)
-    dem = srtm.DEM(elevation, slope, aspect, dem_crs, dem_transform)
-    srtm.write_dem(dem, f"/tmp/dem_{TILE}_np.tif")
+
+    for arr in (elevation, slope, aspect, xcoords, ycoords):
+        assert arr.shape == (1098, 1098)
+
+    assert dem_crs == 'EPSG:32631'
+    assert dem_transform == (100., 0, 399960.0, 0, -100., 4800000)
 
 
+@pytest.mark.requires_test_data
 def test_dem_read_as_xarray():
     TILE = "31TDH"
     crs = mgrs.get_crs_mgrs_tile(TILE)
     resolution = 100.0
     bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
     print("Bounds ", srtm.compute_latlon_bbox_from_region(bbox, crs))
-    dem_handler = srtm.SRTM()
+    dem_handler = srtm.SRTM(get_srtm_folder())
     xarr_dem = dem_handler.read_as_xarray(crs, resolution, bbox)
-    print(xarr_dem)
+
+    for var in ('height', 'aspect', 'slope'):
+        assert var in xarr_dem
+
+    assert xarr_dem.attrs['crs'] == 'EPSG:32631'
+
+    assert xarr_dem.x.shape == (10980, 10980)

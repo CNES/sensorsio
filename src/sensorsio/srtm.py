@@ -222,12 +222,12 @@ class SRTM:
         return xarr
 
 
-def get_dem_mgrs_tile(tile: str) -> DEM:
+def get_dem_mgrs_tile(tile: str, base_dir: str = "/datalake/static_aux/MNT/SRTM_30_hgt") -> DEM:
     """ Get a 10m resolution DEM on the geometry of a MGRS tile"""
     mgrs_trsf = mgrs.get_transform_mgrs_tile(tile)
     mgrs_crs = mgrs.get_crs_mgrs_tile(tile)
     dst_dem = np.zeros((3, 10980, 10980))
-    dem_handler = SRTM()
+    dem_handler = SRTM(base_dir=base_dir)
     srtm_dem = dem_handler.get_dem_mgrs_tile(tile)
     dst_dem, dst_dem_transform = reproject(
         srtm_dem.as_stack(),
