@@ -8,7 +8,7 @@ This module contains utilities function
 import math
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import List, Tuple, Union
+from typing import Iterable, List, Tuple, Union
 
 import numpy as np
 import rasterio as rio
@@ -170,18 +170,43 @@ def create_warped_vrt(filename: str,
         return vrt
 
 
-def bb_intersect(bb: List[BoundingBox]) -> BoundingBox:
+def bb_transform(source_crs: str,
+                 target_crs: str,
+                 bb: BoundingBox,
+                 all_corners: bool = False) -> BoundingBox:
+    """
+    Transform a bounding box by solely looking at its 2 corners (upper-left and lower-right)
+    If all_corners is True, also include upper-right and lower-left
+    """
+    source_x = [bb.left, bb.right]
+    source_y = [bb.bottom, bb.top]
+    if all_corners:
+        source_x += [bb.left, bb.right]
+        source_y += [bb.top, bb.bottom]
+    if source_crs != target_crs:
+        target_x, target_y = rio.warp.transform(source_crs, target_crs, source_x, source_y)
+        xmin = min(target_x)
+        xmax = max(target_x)
+        ymin = min(target_y)
+        ymax = max(target_y)
+        return BoundingBox(xmin, ymin, xmax, ymax)
+    return bb
+
+
+def bb_intersect(bb: Iterable[BoundingBox]) -> BoundingBox:
     """
     Compute the intersection of a list of bounding boxes
 
     :param bb: A list of BoundingBox objects
     :return: The intersection as a BoundingBox object
     """
-    xmin = bb[0][0]
-    xmax = bb[0][2]
-    ymin = bb[0][1]
-    ymax = bb[0][3]
-    for b in bb[1:]:
+    bb_iter = iter(bb)
+    first_elem = next(bb_iter)
+    xmin = first_elem[0]
+    xmax = first_elem[2]
+    ymin = first_elem[1]
+    ymax = first_elem[3]
+    for b in bb_iter:
         if b[0] > xmax or b[2] < xmin or b[1] > ymax or b[3] < ymin:
             raise ValueError('Bounding Box intersection is empty!')
 
@@ -202,9 +227,9 @@ def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
 
     :return: The snapped bounding box as a BoundingBox object
     """
-    left = align * np.floor(2 * bb[0] / align) / 2
+    left = align * np.floor(bb[0] / align)
     right = left + align * (1 + np.floor((bb[2] - bb[0]) / align))
-    bottom = align * np.floor(2 * bb[1] / align) / 2
+    bottom = align * np.floor(bb[1] / align)
     top = bottom + align * (1 + np.floor((bb[3] - bb[1]) / align))
     return BoundingBox(left=left, bottom=bottom, right=right, top=top)
 
@@ -212,7 +237,7 @@ def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
 def bb_common(bounds: List[BoundingBox],
               src_crs: List[str],
               snap: float = None,
-              target_crs: str = None):
+              target_crs: str = None) -> Tuple[rio.coords.BoundingBox, str]:
     """
     Compute the common bounding box between a set of images.
     All bounding boxes are converted to crs before intersection.
@@ -231,7 +256,7 @@ def bb_common(bounds: List[BoundingBox],
     for box, crs in zip(bounds, src_crs):
         if target_crs is None:
             target_crs = crs
-        crs_box = rio.warp.transform_bounds(crs, target_crs, *box)
+        crs_box = bb_transform(crs, target_crs, box)
         boxes.append(crs_box)
 
     # Intersect all boxes
@@ -264,8 +289,14 @@ def read_as_numpy(img_files: List[str],
     # Check if we need resampling or not
     need_warped_vrt = (offsets is not None)
     # If we change image bounds
+    nb_bands = None
     for f in img_files:
         with rio.open(f) as ds:
+            if nb_bands is None:
+                nb_bands = ds.count
+            else:
+                if nb_bands != ds.count:
+                    raise ValueError("All image files need to have the same number of bands")
             if bounds is not None and ds.bounds != bounds:
                 need_warped_vrt = True
             else:
@@ -344,6 +375,10 @@ def read_as_numpy(img_files: List[str],
 
 
 def compute_latlon_bbox_from_region(bounds: BoundingBox, crs: str) -> BoundingBox:
+    """
+    Compute WGS84 bounding box from bounding box
+    """
+    # TODO: Might be redundant with bb_transform(all_corners=True)
     ul_from = (bounds.left, bounds.top)
     ur_from = (bounds.right, bounds.top)
     ll_from = (bounds.left, bounds.bottom)
@@ -383,6 +418,7 @@ def swath_resample(
         cutoff_sigma_mult: float = 2.,
         strip_size: int = 1500000,
         fill_value: float = np.nan,
+        discrete_fill_value: int = 0,
         max_neighbours: int = 8) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     This function wraps and optimizes pyresample in order to resample
@@ -481,7 +517,7 @@ def swath_resample(
                                                 axis=-1)[:, 0],
                                             distance_array=None,
                                             weight_funcs=np.exp,
-                                            fill_value=fill_value)
+                                            fill_value=discrete_fill_value)
 
                 # Map the partial function on each input discrete variable spearately
                 # This call is assynchronous (computation runs in background)
