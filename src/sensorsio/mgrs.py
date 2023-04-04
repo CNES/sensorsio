@@ -10,6 +10,7 @@ import numpy as np
 import rasterio as rio
 from pyproj import CRS, Transformer
 from rasterio.coords import BoundingBox
+from shapely import transform
 from shapely.geometry import Polygon
 
 
@@ -24,16 +25,22 @@ def get_polygon_mgrs_tile(tile: str) -> Polygon:
 
 
 def get_bbox_mgrs_tile(tile: str, latlon: bool = True) -> BoundingBox:
-    """ Get a bounding box in '+proj=latlong' for a MGRS tile. If latlon is False, the bounding box is given in the CRS of the MGRS tile"""
+    """
+    Get a bounding box in '+proj=latlong' for a MGRS tile. If latlon
+    is False, the bounding box is given in the CRS of the MGRS tile
+    """
     poly = get_polygon_mgrs_tile(tile)
-    bbox = BoundingBox(*poly.bounds)
+
     if latlon:
-        return bbox
+        return BoundingBox(*poly.bounds)
     else:
         transformer = Transformer.from_crs('+proj=latlong', get_crs_mgrs_tile(tile))
-        (left, right), (bottom, top) = transformer.transform([bbox.left, bbox.right],
-                                                             [bbox.bottom, bbox.top])
-        return BoundingBox(left, bottom, right, top)
+        utm_bounds = transform(
+            poly, lambda x: np.stack(transformer.transform(x[:, 0], x[:, 1]), axis=-1)).bounds
+
+        # Align on 10m grid
+        utm_bounds = (10 * np.round(coord / 10.) for coord in utm_bounds)
+        return BoundingBox(*utm_bounds)
 
 
 def get_crs_mgrs_tile(tile: str) -> CRS:

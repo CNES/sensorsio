@@ -29,12 +29,18 @@ def test_mgrs_transform():
 
 def test_get_bbox_mgrs_tile():
     """
+    Check that get_bbox_mrgs_tile returns the correct geometry
     """
     TILE = "31TCJ"
     crs = mgrs.get_crs_mgrs_tile(TILE)
     bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
     assert int((bbox[2] - bbox[0]) / 10.) == 10980
     assert int((bbox[3] - bbox[1]) / 10.) == 10980
+
+    geotransform = mgrs.get_transform_mgrs_tile(TILE)
+
+    assert geotransform[2] == bbox[0]
+    assert geotransform[5] == bbox[3]
 
 
 def test_srtm_tiles_from_mgrs_tile():
