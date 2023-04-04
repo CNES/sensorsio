@@ -3,6 +3,7 @@
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 
 import os
+from functools import lru_cache
 
 import fiona
 import geopandas as gpd
@@ -13,7 +14,10 @@ from rasterio.coords import BoundingBox
 from shapely import transform
 from shapely.geometry import Polygon
 
+from sensorsio import utils
 
+
+@lru_cache
 def get_polygon_mgrs_tile(tile: str) -> Polygon:
     """ Get the shapely.Polygon corresponding to a MGRS tile"""
     assert tile[0] != 'T'
@@ -24,6 +28,7 @@ def get_polygon_mgrs_tile(tile: str) -> Polygon:
         return Polygon(tiles[0].geometry['coordinates'][0])
 
 
+@lru_cache
 def get_bbox_mgrs_tile(tile: str, latlon: bool = True) -> BoundingBox:
     """
     Get a bounding box in '+proj=latlong' for a MGRS tile. If latlon
@@ -43,6 +48,7 @@ def get_bbox_mgrs_tile(tile: str, latlon: bool = True) -> BoundingBox:
         return BoundingBox(*utm_bounds)
 
 
+@lru_cache
 def get_crs_mgrs_tile(tile: str) -> CRS:
     """Get the pyproj.CRS for a MGRS tile.
 
@@ -57,6 +63,7 @@ def get_crs_mgrs_tile(tile: str) -> CRS:
     return CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south})
 
 
+@lru_cache
 def get_transform_mgrs_tile(tile: str) -> rio.Affine:
     """ Get the rasterio.Affine transform for a MGRS tile in its own CRS"""
     ul, ur, ll, lr, _ = get_polygon_mgrs_tile(tile).exterior.coords
