@@ -13,16 +13,25 @@ from sensorsio import mgrs, srtm, utils
 
 
 def test_srtm_id_to_name():
+    """
+    Test conversion between srtm tile id and file name
+    """
     assert srtm.SRTMTileId(1, -2).name() == "S02E001"
     assert srtm.SRTMTileId(-1, -2).name() == "S02W001"
     assert srtm.SRTMTileId(-1, 12).name() == "N12W001"
 
 
 def test_crs_from_mgrs():
+    """
+    Test conversion between mgrs tile id and crs
+    """
     assert mgrs.get_crs_mgrs_tile("31TDH").to_authority() == ("EPSG", "32631")
 
 
 def test_mgrs_transform():
+    """
+    Test the conversion between mgrs tile id and geotransform
+    """
     assert mgrs.get_transform_mgrs_tile("31TDH") == rio.Affine(10.0, 0.0, 399960.0, 0.0, -10.0,
                                                                4800000.0)
 
@@ -123,8 +132,8 @@ def test_dem_read_as_numpy():
     bbox = mgrs.get_bbox_mgrs_tile(TILE, latlon=False)
     assert int((bbox[2] - bbox[0]) / 10.) == 10980
 
-    print("Bounds ", utils.compute_latlon_bbox_from_region(bbox, crs))
     dem_handler = srtm.SRTM(get_srtm_folder())
+
     (
         elevation,
         slope,
@@ -135,11 +144,14 @@ def test_dem_read_as_numpy():
         dem_transform,
     ) = dem_handler.read_as_numpy(crs, resolution, bbox)
 
-    for arr in (elevation, slope, aspect, xcoords, ycoords):
+    for arr in (elevation, slope, aspect):
         assert arr.shape == (1098, 1098)
 
+    for arr in (xcoords, ycoords):
+        assert arr.shape == (1098, )
+
     assert dem_crs == 'EPSG:32631'
-    assert dem_transform == (100., 0, 399960.0, 0, -100., 4800000)
+    assert dem_transform == rio.Affine(100., 0, bbox[0], 0, -100., bbox[3])
 
 
 @pytest.mark.requires_test_data
@@ -157,4 +169,5 @@ def test_dem_read_as_xarray():
 
     assert xarr_dem.attrs['crs'] == 'EPSG:32631'
 
-    assert xarr_dem.x.shape == (10980, 10980)
+    assert xarr_dem.x.shape == (1098, )
+    assert xarr_dem.y.shape == (1098, )
