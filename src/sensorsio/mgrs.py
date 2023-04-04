@@ -4,6 +4,7 @@
 
 import os
 
+import fiona
 import geopandas as gpd
 import numpy as np
 import rasterio as rio
@@ -15,9 +16,11 @@ from shapely.geometry import Polygon
 def get_polygon_mgrs_tile(tile: str) -> Polygon:
     """ Get the shapely.Polygon corresponding to a MGRS tile"""
     assert tile[0] != 'T'
-    mgrs_df = gpd.read_file(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/mgrs_tiles.shp'))
-    return mgrs_df[mgrs_df.Name == tile].iloc[0].geometry
+    with fiona.open(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         'data/sentinel2/mgrs_tiles.gpkg')) as f:
+        tiles = list(filter(lambda t: t['properties']['Name'] == tile, f))
+        return Polygon(tiles[0].geometry['coordinates'][0])
 
 
 def get_bbox_mgrs_tile(tile: str, latlon: bool = True) -> BoundingBox:
