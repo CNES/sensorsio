@@ -444,7 +444,6 @@ class Sentinel2:
         np_arr = None
         xcoords = None
         ycoords = None
-        crs = None
         if len(bands):
             img_files = [self.build_band_path(b, band_type) for b in bands]
             np_arr, xcoords, ycoords, crs = utils.read_as_numpy(img_files,
