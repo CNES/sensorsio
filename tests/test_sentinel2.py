@@ -193,3 +193,39 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
         assert s2_xr.attrs['crs'] == parameters.crs
     else:
         assert s2_xr.attrs['crs'] == s2_dataset.crs
+
+
+@pytest.mark.requires_test_data
+def test_read_incidence_angle_as_numpy():
+    """
+    Test the function that reads incidence angles
+    """
+    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder())
+
+    even_zenith_angle, odd_zenith_angle, even_azimuth_angle, odd_azimuth_angle = s2_dataset.read_incidence_angles_as_numpy(
+        res=sentinel2.Sentinel2.R2)
+
+    for arr in [even_zenith_angle, odd_zenith_angle, even_azimuth_angle, odd_azimuth_angle]:
+        assert arr.shape == (5490, 5490)
+
+    for arr in [even_zenith_angle, odd_zenith_angle]:
+        assert np.nanmax(arr) < 12
+        assert np.nanmin(arr) >= 0
+
+
+@pytest.mark.requires_test_data
+def test_read_solar_angle_as_numpy():
+    """
+    Test the function that reads solar angles
+    """
+    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder())
+
+    zenith_angle, azimuth_angle = s2_dataset.read_solar_angles_as_numpy(res=sentinel2.Sentinel2.R2)
+
+    for arr in [zenith_angle, azimuth_angle]:
+        assert arr.shape == (5490, 5490)
+
+    assert azimuth_angle.max() < 180
+    assert azimuth_angle.min() > 0
+    assert zenith_angle.max() < 60
+    assert zenith_angle.min() > 0
