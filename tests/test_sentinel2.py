@@ -93,7 +93,7 @@ class ReadAsNumpyParams:
         default_factory=lambda: sentinel2.Sentinel2.ALL_MASKS)
     readAtmos: bool = False
     res: sentinel2.Sentinel2.Res = sentinel2.Sentinel2.R1
-    scale: float = 1000
+    scale: float = 10000
     crs: Optional[str] = None
     resolution: float = 10
     region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None

@@ -61,6 +61,8 @@ class Venus:
             # Get crs
             self.crs = ds.crs
 
+        # TODO: decode cloud cover as well
+
     def __repr__(self):
         return f'{self.satellite.value}, {self.date}, {self.site}'
 
@@ -154,7 +156,7 @@ class Venus:
     # Resolution
     RES = {B1: 5, B2: 5, B3: 5, B4: 5, B5: 5, B6: 5, B7: 5, B8: 5, B9: 5, B10: 5, B11: 5, B12: 5}
 
-    def PSF(self, bands: List[Band], resolution: float = 0.5, half_kernel_width: int = None):
+    def PSF(bands: List[Band], resolution: float = 0.5, half_kernel_width: int = None):
         """
         Generate PSF kernels from list of bands
 
