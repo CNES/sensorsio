@@ -12,12 +12,12 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import pytest
 import rasterio as rio
-from sensorsio import mgrs, venus
+from sensorsio import venus
 
 
 def get_venus_l2a_theia_folder() -> str:
     """
-    Retrieve SRTM folder from env var
+    Retrieve Venµs folder from env var
     """
     return os.path.join(os.environ['SENSORSIO_TEST_DATA_PATH'], 'venus', 'l2a',
                         'VENUS-XS_20200923-105325-000_L2A_SUDOUE-1_C_V3-1')
@@ -138,22 +138,22 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
         assert crs == 'epsg:32631'
 
     # Test read as xarray part
-    s2_xr = vns_dataset.read_as_xarray(**parameters.__dict__)
+    vns_xr = vns_dataset.read_as_xarray(**parameters.__dict__)
 
     for c in ['t', 'x', 'y']:
-        assert c in s2_xr.coords
+        assert c in vns_xr.coords
 
-    assert s2_xr['t'].shape == (1, )
-    assert s2_xr['x'].shape == (parameters.expected_shape()[1], )
-    assert s2_xr['y'].shape == (parameters.expected_shape()[0], )
+    assert vns_xr['t'].shape == (1, )
+    assert vns_xr['x'].shape == (parameters.expected_shape()[1], )
+    assert vns_xr['y'].shape == (parameters.expected_shape()[0], )
 
     for band in parameters.bands:
-        assert band.value in s2_xr.variables
-        assert s2_xr[band.value].shape == (1, *parameters.expected_shape())
+        assert band.value in vns_xr.variables
+        assert vns_xr[band.value].shape == (1, *parameters.expected_shape())
 
-    assert s2_xr.attrs['site'] == 'SUDOUE-1'
-    assert s2_xr.attrs['type'] == parameters.band_type.value
+    assert vns_xr.attrs['site'] == 'SUDOUE-1'
+    assert vns_xr.attrs['type'] == parameters.band_type.value
     if parameters.crs is not None:
-        assert s2_xr.attrs['crs'] == parameters.crs
+        assert vns_xr.attrs['crs'] == parameters.crs
     else:
-        assert s2_xr.attrs['crs'] == vns_dataset.crs
+        assert vns_xr.attrs['crs'] == vns_dataset.crs
