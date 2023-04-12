@@ -17,7 +17,7 @@ from sensorsio import mgrs, sentinel2
 
 def get_sentinel2_l2a_theia_folder() -> str:
     """
-    Retrieve SRTM folder from env var
+    Retrieve Sentinel2 folder from env var
     """
     return os.path.join(os.environ['SENSORSIO_TEST_DATA_PATH'], 'sentinel2', 'l2a_maja',
                         'SENTINEL2B_20230219-105857-687_L2A_T31TCJ_C_V3-1')
