@@ -81,8 +81,8 @@ class Master():
         if region is None:
             region = [0, 0, master_lat.shape[0], master_lat.shape[1]]
 
-            master_lat = master_lat[region[0]:region[2], region[1]:region[3]]
-            master_lon = master_lon[region[0]:region[2], region[1]:region[3]]
+        master_lat = master_lat[region[0]:region[2], region[1]:region[3]]
+        master_lon = master_lon[region[0]:region[2], region[1]:region[3]]
 
         # handle CRS if not available
         if crs is None:
@@ -111,8 +111,9 @@ class Master():
             master_azimuth, master_sun_zenith, master_sun_azimuth
         ],
                         axis=-1)
+        vois = vois[region[0]:region[2], region[1]:region[3], :]
+        invalid_mask = ~(master_lst > 0)[region[0]:region[2], region[1]:region[3]]
 
-        invalid_mask = ~(master_lst > 0)
         vois = np.ma.masked_array(vois,
                                   np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
 
