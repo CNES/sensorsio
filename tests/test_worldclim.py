@@ -4,8 +4,7 @@ import numpy as np
 import pytest
 from rasterio.coords import BoundingBox
 from sensorsio import mgrs
-from sensorsio.worldclim import (WorldClimBio, WorldClimData,
-                                 WorldClimQuantity, WorldClimVar,
+from sensorsio.worldclim import (WorldClimBio, WorldClimData, WorldClimQuantity, WorldClimVar,
                                  WorldClimVarAll)
 
 
