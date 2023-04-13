@@ -52,23 +52,24 @@ class Ecostress():
         return f'{self.start_time} - {self.end_time}'
 
     def read_as_numpy(
-            self,
-            crs: str = None,
-            resolution: float = 70,
-            region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
-            no_data_value: float = np.nan,
-            read_lst: bool = True,
-            read_angles: bool = True,
-            read_emissivities: bool = True,
-            bounds: rio.coords.BoundingBox = None,
-            nprocs: int = 4,
-            strip_size: int = 375000,
-            dtype: np.dtype = np.float32
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+        self,
+        crs: str = None,
+        resolution: float = 70,
+        region: Tuple[int, int, int, int] = None,
+        no_data_value: float = np.nan,
+        read_lst: bool = True,
+        read_angles: bool = True,
+        read_emissivities: bool = True,
+        bounds: rio.coords.BoundingBox = None,
+        nprocs: int = 4,
+        strip_size: int = 375000,
+        dtype: np.dtype = np.float32
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+               np.ndarray, str]:
         """
         :param crs: Projection in which to read the image (will use WarpedVRT)
         :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
-        :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
+        :param region: The region to read as a list of pixel coords (xmin, ymin, xmax, ymax)
         :param no_data_value: How no-data will appear in output ndarray
         :param bounds: New bounds for datasets. If different from image bands, will use a WarpedVRT
         :param algorithm: The resampling algorithm to be used if WarpedVRT
@@ -132,6 +133,8 @@ class Ecostress():
                         angle_array = 180 + angle_array
                     vois.append(angle_array)
 
+        invalid_mask = None
+
         # Open LST file
         with h5py.File(self.lst_file) as lstDS:
 
@@ -164,7 +167,10 @@ class Ecostress():
                                                              region[1]:region[3]])
                     # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
                     if em not in ('Emis1', 'Emis3'):
-                        invalid_mask = np.logical_or(invalid_mask, em_err == 0)
+                        if invalid_mask is not None:
+                            invalid_mask = np.logical_or(invalid_mask, em_err == 0)
+                        else:
+                            invalid_mask == em_err == 0
                     em_err = (0.0001 * em_err).astype(dtype)
                     vois.append(em_err)
 
