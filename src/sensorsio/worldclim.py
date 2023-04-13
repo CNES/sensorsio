@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+1  #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 """ Modeling and access tools for WorldClim 2.0 data """
@@ -10,9 +10,8 @@ import numpy as np
 import rasterio as rio
 import xarray as xr
 from rasterio.coords import BoundingBox
-from rasterio.warp import reproject
 
-from .utils import compute_latlon_bbox_from_region
+from sensorsio import utils
 
 
 class WorldClimQuantity(Enum):
@@ -101,34 +100,6 @@ class WorldClimData:
         ]
         self.biofiles = [self.get_file_path(WorldClimVar(b)) for b in WorldClimBioAll]
 
-        with rio.open(self.climfiles[0]) as clim_ds:
-            self.transform = rio.Affine(clim_ds.transform.a, clim_ds.transform.b,
-                                        clim_ds.transform.c - clim_ds.transform.a / 2,
-                                        clim_ds.transform.d, clim_ds.transform.e,
-                                        clim_ds.transform.f - clim_ds.transform.e / 2)
-
-    def crop_to_bbox(self, imfile, bbox):
-        "Crop a geotif file using the bbox"
-        (top_f, bottom_f), (left_f, right_f) = rio.transform.rowcol(self.transform,
-                                                                    [bbox.left, bbox.right],
-                                                                    [bbox.top, bbox.bottom],
-                                                                    op=np.floor)
-        (top_c, bottom_c), (left_c, right_c) = rio.transform.rowcol(self.transform,
-                                                                    [bbox.left, bbox.right],
-                                                                    [bbox.top, bbox.bottom],
-                                                                    op=np.ceil)
-
-        (left, right) = (min(min(left_c, right_c),
-                             min(left_f, right_f)), max(max(left_c, right_c), max(left_f, right_f)))
-        (bottom, top) = (max(max(bottom_c, top_c),
-                             max(bottom_f, top_f)), min(min(bottom_c, top_c), min(bottom_f, top_f)))
-
-        print(left, right, top, bottom)
-        with rio.open(imfile) as data_source:
-            image = data_source.read(window=((top, bottom), (left, right)))
-
-        return image
-
     def get_var_name(self, var):
         """ Return the variable name as 30s_tavg_08"""
         if var.typ == 'bio':
@@ -141,79 +112,56 @@ class WorldClimData:
         var_name = self.get_var_name(var)
         return f"{self.wcdir}/{self.__wcprefix}_{var_name}.tif"
 
-    def get_wc_for_bbox(
-            self,
-            bbox,
-            wc_vars: Optional[List[WorldClimVar]] = None) -> Tuple[np.ndarray, rio.Affine]:
-        "Get a stack with all the WC vars croped to contain the bbox"
-        if wc_vars is None:
-            wc_vars = WorldClimVarAll
-        files = [self.get_file_path(v) for v in wc_vars]
-        wcvars: List[np.ndarray] = [self.crop_to_bbox(wc_file, bbox)[0, :, :] for wc_file in files]
-        transform = rio.Affine(self.transform.a, self.transform.b, bbox.left, self.transform.d,
-                               self.transform.e, bbox.top)
-        return np.stack(wcvars, axis=0), transform
-
     def read_as_numpy(
         self,
-        wc_vars: Optional[List[WorldClimVar]] = None,
-        crs: str = None,
+        wc_vars: List[WorldClimVar] = WorldClimVarAll,
+        crs: Optional[str] = None,
         resolution: float = 1000,
-        bounds: BoundingBox = None,
+        bounds: Optional[BoundingBox] = None,
+        no_data_value: float = np.nan,
         algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.dtype("float32"),
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, str, rio.Affine]:
-        """Read the data corresponding to a bounding box and return it
-        as a numpy array"""
-        assert bounds is not None
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, str]:
+        """
+        Read the data corresponding to a bounding box and return it
+        as a numpy array
+        """
+        # Safeguard
+        assert wc_vars is not None and len(wc_vars) > 0
+
+        wc_files = [self.get_file_path(wc_var) for wc_var in wc_vars]
+
         if crs is None:
             crs = self.__crs
-        if wc_vars is None:
-            wc_vars = WorldClimVarAll
-        dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0, -resolution, bounds.top)
-        dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
-        dst_size_y = int(np.ceil((bounds.top - bounds.bottom) / resolution))
-        bbox = compute_latlon_bbox_from_region(bounds, crs)
-        wc_bbox, src_transform = self.get_wc_for_bbox(bbox, wc_vars)
-        dst_wc = np.zeros((wc_bbox.shape[0], dst_size_y, dst_size_x))
-        dst_wc, dst_wc_transform = reproject(
-            wc_bbox,
-            destination=dst_wc,
-            src_transform=src_transform,
-            src_crs=self.__crs,
-            dst_transform=dst_transform,
-            dst_crs=crs,
-            resampling=algorithm,
-        )
-        dst_wc = dst_wc.astype(dtype)
 
-        xcoords = np.linspace(bounds.left + resolution / 2, bounds.right - resolution / 2,
-                              dst_size_x)
-        ycoords = np.linspace(bounds.top - resolution / 2, bounds.bottom + resolution / 2,
-                              dst_size_y)
+        np_arr, xcoords, ycoords, crs = utils.read_as_numpy(wc_files,
+                                                            crs=crs,
+                                                            resolution=resolution,
+                                                            bounds=bounds,
+                                                            output_no_data_value=no_data_value,
+                                                            algorithm=algorithm,
+                                                            separate=True,
+                                                            dtype=np.dtype("float32"))
 
-        return (dst_wc, xcoords, ycoords, crs, dst_wc_transform)
+        # skip first dimension
+        np_arr = np_arr[0, ...]
 
-    def read_as_xarray(
-            self,
-            wc_vars: Optional[List[WorldClimVar]] = None,
-            crs: str = None,
-            resolution: float = 100,
-            bounds: BoundingBox = None,
-            algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
-            dtype: np.dtype = np.dtype("float32"),
-    ) -> xr.Dataset:
+        return np_arr, xcoords, ycoords, crs
+
+    def read_as_xarray(self,
+                       wc_vars: List[WorldClimVar] = WorldClimVarAll,
+                       crs: Optional[str] = None,
+                       resolution: float = 100,
+                       bounds: Optional[BoundingBox] = None,
+                       no_data_value: float = np.nan,
+                       algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic) -> xr.Dataset:
         """Read the data corresponding to a bounding box and return it
         as an xarray"""
-        if wc_vars is None:
-            wc_vars = WorldClimVarAll
         (
             np_wc,
             xcoords,
             ycoords,
             crs,
-            transform,
-        ) = self.read_as_numpy(wc_vars, crs, resolution, bounds, algorithm, dtype)
+        ) = self.read_as_numpy(wc_vars, crs, resolution, bounds, no_data_value, algorithm=algorithm)
         xr_vars: Dict[str, Tuple[List[str], np.ndarray]] = {
             f"wc_{self.get_var_name(var)}": (["y", "x"], np_wc[idx, :, :])
             for idx, var in enumerate(wc_vars)
@@ -227,7 +175,7 @@ class WorldClimData:
             attrs={
                 "crs": str(crs),
                 "resolution": resolution,
-                "transform": str(transform),
+                "nodata": no_data_value
             },
         )
         return xarr
