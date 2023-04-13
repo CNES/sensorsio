@@ -199,7 +199,6 @@ class Landsat:
         np_arr_msk = None
         xcoords = None
         ycoords = None
-        crs = None
 
         # Readn bands
         if len(bands):

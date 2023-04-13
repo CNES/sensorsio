@@ -79,17 +79,21 @@ class ReadAsNumpyParams:
     "parameters",
     [
         # Use region to restrict source reading with bounding box
-        ReadAsNumpyParams(region=rio.coords.BoundingBox(
-            left=354650., bottom=4828620., right=355650., top=4829620.)),
+        ReadAsNumpyParams(
+            region=rio.coords.BoundingBox(left=534000, bottom=1451500., right=534200, top=1451700.)
+        ),
         # Use region to restrict source read with pixel coords
-        ReadAsNumpyParams(region=[0, 0, 100, 200]),
+        ReadAsNumpyParams(region=[3500, 3500, 3600, 3700]),
         # Use bounds to set output region
-        ReadAsNumpyParams(bounds=rio.coords.BoundingBox(
-            left=354650., bottom=4828620., right=355650., top=4829620.)),
+        ReadAsNumpyParams(
+            bounds=rio.coords.BoundingBox(left=534000, bottom=1451500., right=534200, top=1451700.)
+        ),
         # Set a different target crs
-        ReadAsNumpyParams(bounds=rio.coords.BoundingBox(
-            left=554540.0, bottom=6279120.0, right=555540.0, top=6280120.0),
-                          crs='EPSG:2154')
+        ReadAsNumpyParams(bounds=rio.coords.BoundingBox(left=533975.4843748295,
+                                                        bottom=1451497.6588132062,
+                                                        right=534175.4845015162,
+                                                        top=1451697.6589390924),
+                          crs='EPSG:32450')
     ])
 def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
     """
@@ -110,7 +114,7 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
     if parameters.crs is not None:
         assert crs == parameters.crs
     else:
-        assert crs == 'epsg:32631'
+        assert crs == 'epsg:32650'
 
     # Test read as xarray part
     ls8_xr = ls8_dataset.read_as_xarray(**parameters.__dict__)
