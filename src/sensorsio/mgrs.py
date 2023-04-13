@@ -6,15 +6,12 @@ import os
 from functools import lru_cache
 
 import fiona
-import geopandas as gpd
 import numpy as np
 import rasterio as rio
 from pyproj import CRS, Transformer
 from rasterio.coords import BoundingBox
 from shapely import transform
 from shapely.geometry import Polygon
-
-from sensorsio import utils
 
 
 @lru_cache

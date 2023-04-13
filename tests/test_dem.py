@@ -9,7 +9,8 @@ import tempfile
 
 import pytest
 import rasterio as rio
-from sensorsio import mgrs, srtm, utils
+
+from sensorsio import mgrs, srtm
 
 
 def test_srtm_id_to_name():

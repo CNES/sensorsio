@@ -6,12 +6,13 @@ This module contains tests for the Ecostress driver
 """
 import datetime
 import os
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Optional, Tuple
 
 import numpy as np
 import pytest
 import rasterio as rio
+
 from sensorsio import ecostress
 
 
