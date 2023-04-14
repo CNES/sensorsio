@@ -5,12 +5,12 @@
 import glob
 import os
 from enum import Enum
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
-import dateutil
 import numpy as np
 import rasterio as rio
 import xarray as xr
+from dateutil.parser import parse as parse_date
 
 from sensorsio import utils
 
@@ -28,7 +28,7 @@ class Landsat:
         self.product_dir = os.path.normpath(product_dir)
         self.product_name = os.path.basename(self.product_dir)
 
-        self.date = dateutil.parser.parse(self.product_name[17:25])
+        self.date = parse_date(self.product_name[17:25])
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
 
@@ -167,17 +167,18 @@ class Landsat:
         return p[0]
 
     def read_as_numpy(
-            self,
-            bands: List[Band],
-            masks: List[Mask] = ALL_MASKS,
-            crs: str = None,
-            resolution: float = 30,
-            region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
-            no_data_value: float = np.nan,
-            bounds: rio.coords.BoundingBox = None,
-            algorithm=rio.enums.Resampling.cubic,
-            dtype: np.dtype = np.float32
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+        self,
+        bands: List[Band],
+        masks: List[Mask] = ALL_MASKS,
+        crs: Optional[str] = None,
+        resolution: float = 30,
+        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
+        no_data_value: float = np.nan,
+        bounds: Optional[rio.coords.BoundingBox] = None,
+        algorithm=rio.enums.Resampling.cubic,
+        dtype: np.dtype = np.dtype('float32'),
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray],
+               Optional[np.ndarray], Optional[str]]:
         """
         Read bands from Sentinel2 products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -195,23 +196,23 @@ class Landsat:
                  the y coords as a np.ndarray of shape [height],
                  the crs as a string
         """
+        # Readn bands
         np_arr = None
-        np_arr_msk = None
         xcoords = None
         ycoords = None
-
-        # Readn bands
+        out_crs = crs
         if len(bands):
             img_files = [self.build_band_path(b) for b in bands]
-            np_arr, xcoords, ycoords, crs = utils.read_as_numpy(img_files,
-                                                                crs=crs,
-                                                                resolution=resolution,
-                                                                region=region,
-                                                                output_no_data_value=no_data_value,
-                                                                bounds=bounds,
-                                                                algorithm=algorithm,
-                                                                separate=True,
-                                                                dtype=dtype)
+            np_arr, xcoords, ycoords, out_crs = utils.read_as_numpy(
+                img_files,
+                crs=crs,
+                resolution=resolution,
+                region=region,
+                output_no_data_value=no_data_value,
+                bounds=bounds,
+                algorithm=algorithm,
+                separate=True,
+                dtype=dtype)
 
             factors = np.array([self.FACTORS[b] for b in bands])
             shifts = np.array([self.SHIFTS[b] for b in bands])
@@ -225,6 +226,7 @@ class Landsat:
                 np_arr_rescaled[i, ...][np_arr[i, ...] == self.NO_DATA_FLAGS[b]] = no_data_value
             np_arr = np_arr_rescaled
 
+        np_arr_msk = None
         if len(masks):
             img_files = [self.build_band_path(m) for m in masks]
             np_arr_msk, xcoords, ycoords, crs = utils.read_as_numpy(
@@ -240,18 +242,20 @@ class Landsat:
                 scale=None)
             # Drop first dimension
             np_arr_msk = np_arr_msk[0, ...]
-        return np_arr, np_arr_msk, xcoords, ycoords, crs
+        return np_arr, np_arr_msk, xcoords, ycoords, out_crs
 
-    def read_as_xarray(self,
-                       bands: List[Band],
-                       masks: List[Mask] = ALL_MASKS,
-                       crs: str = None,
-                       resolution: float = 30,
-                       region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
-                       no_data_value: float = np.nan,
-                       bounds: rio.coords.BoundingBox = None,
-                       algorithm=rio.enums.Resampling.cubic,
-                       dtype: np.dtype = np.float32) -> xr.Dataset:
+    def read_as_xarray(
+        self,
+        bands: List[Band],
+        masks: List[Mask] = ALL_MASKS,
+        crs: Optional[str] = None,
+        resolution: float = 30,
+        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
+        no_data_value: float = np.nan,
+        bounds: Optional[rio.coords.BoundingBox] = None,
+        algorithm=rio.enums.Resampling.cubic,
+        dtype: np.dtype = np.dtype('float32')
+    ) -> Optional[xr.Dataset]:
         """
         Read bands from Sentinel2 products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -270,16 +274,21 @@ class Landsat:
             bands, masks, crs, resolution, region, no_data_value, bounds, algorithm, dtype)
 
         vars = {}
-        for i in range(len(bands)):
-            vars[bands[i].value] = (["t", "y", "x"], np_arr[None, i, ...])
+        if np_arr is not None:
+            for i in range(len(bands)):
+                vars[bands[i].value] = (["t", "y", "x"], np_arr[None, i, ...])
+        if np_arr_msk is not None:
             for i in range(len(masks)):
                 vars[masks[i].value] = (["t", "y", "x"], np_arr_msk[None, i, ...])
 
-        xarr = xr.Dataset(vars,
-                          coords={
-                              't': [self.date],
-                              'x': xcoords,
-                              'y': ycoords
-                          },
-                          attrs={'crs': crs})
+        if xcoords is not None and ycoords is not None:
+            xarr = xr.Dataset(vars,
+                              coords={
+                                  't': [self.date],
+                                  'x': xcoords,
+                                  'y': ycoords
+                              },
+                              attrs={'crs': crs})
+        else:
+            xarr = None
         return xarr

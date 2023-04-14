@@ -6,16 +6,17 @@ This module contains utilities function
 """
 
 import math
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Iterable, List, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import rasterio as rio
 import xarray as xr
-from affine import Affine
+from affine import Affine  # type: ignore
 from pyproj import Transformer
-from pyresample import geometry, kd_tree
+from pyresample import geometry, kd_tree  # type: ignore
 from rasterio.coords import BoundingBox
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
@@ -23,12 +24,14 @@ from rasterio.warp import transform_bounds
 from rasterio.windows import Window
 
 
-def rgb_render(data: np.ndarray,
-               clip: int = 2,
-               bands: List[int] = [2, 1, 0],
-               norm: bool = True,
-               dmin: np.ndarray = None,
-               dmax: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def rgb_render(
+    data: np.ndarray,
+    clip: int = 2,
+    bands: List[int] = [2, 1, 0],
+    norm: bool = True,
+    dmin: Optional[np.ndarray] = None,
+    dmax: Optional[np.ndarray] = None
+) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
     """
     Prepare data for visualization with matplot lib
 
@@ -44,15 +47,21 @@ def rgb_render(data: np.ndarray,
 
     # Extract bands from data
     data_ready = np.take(data, bands, axis=0)
-
+    out_dmin = None
+    out_dmax = None
     # If normalization is on
     if norm:
         # Rescale and clip data according to percentile
         if dmin is None:
-            dmin = np.percentile(data_ready, clip, axis=(1, 2))
+            out_dmin = np.percentile(data_ready, clip, axis=(1, 2))
+        else:
+            out_dmin = dmin
         if dmax is None:
-            dmax = np.percentile(data_ready, 100 - clip, axis=(1, 2))
-        data_ready = np.clip((np.einsum("ijk->jki", data_ready) - dmin) / (dmax - dmin), 0, 1)
+            out_dmax = np.percentile(data_ready, 100 - clip, axis=(1, 2))
+        else:
+            out_dmax = dmax
+        data_ready = np.clip((np.einsum("ijk->jki", data_ready) - out_dmin) / (out_dmax - out_dmin),
+                             0, 1)
 
     else:
         data_ready = np.einsum("ijk->jki", data_ready)
@@ -61,13 +70,13 @@ def rgb_render(data: np.ndarray,
     if data_ready.shape[-1] == 1:
         data_ready = data_ready[:, :, 0]
 
-    return data_ready, dmin, dmax
+    return data_ready, out_dmin, out_dmax
 
 
 def generate_psf_kernel(res: float,
                         mtf_res: float,
                         mtf_fc: float,
-                        half_kernel_width: int = None) -> np.ndarray:
+                        half_kernel_width: Optional[int] = None) -> np.ndarray:
     """
     Generate a gaussian PSF kernel sampled at given resolution
 
@@ -100,11 +109,11 @@ def generate_psf_kernel(res: float,
 
 def create_warped_vrt(filename: str,
                       resolution: float,
-                      dst_bounds: BoundingBox = None,
-                      dst_crs: str = None,
-                      src_nodata: float = None,
-                      nodata: float = None,
-                      shifts: Tuple[float] = None,
+                      dst_bounds: Optional[BoundingBox] = None,
+                      dst_crs: Optional[str] = None,
+                      src_nodata: Optional[float] = None,
+                      nodata: Optional[float] = None,
+                      shifts: Optional[Tuple[float, float]] = None,
                       resampling: Resampling = Resampling.cubic,
                       dtype=None) -> WarpedVRT:
     """
@@ -236,8 +245,8 @@ def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
 
 def bb_common(bounds: List[BoundingBox],
               src_crs: List[str],
-              snap: float = None,
-              target_crs: str = None) -> Tuple[rio.coords.BoundingBox, str]:
+              snap: Optional[float] = None,
+              target_crs: Optional[str] = None) -> Tuple[rio.coords.BoundingBox, str]:
     """
     Compute the common bounding box between a set of images.
     All bounding boxes are converted to crs before intersection.
@@ -252,11 +261,12 @@ def bb_common(bounds: List[BoundingBox],
     returns: A tuple of box, crs
     """
     assert (len(bounds) == len(src_crs))
+    out_target_crs = target_crs
     boxes = []
     for box, crs in zip(bounds, src_crs):
-        if target_crs is None:
-            target_crs = crs
-        crs_box = bb_transform(crs, target_crs, box)
+        if out_target_crs is None:
+            out_target_crs = crs
+        crs_box = bb_transform(crs, out_target_crs, box)
         boxes.append(crs_box)
 
     # Intersect all boxes
@@ -264,21 +274,21 @@ def bb_common(bounds: List[BoundingBox],
     # Snap to grid
     if snap is not None:
         box = bb_snap(box, align=snap)
-    return box, target_crs
+    return box, out_target_crs
 
 
 def read_as_numpy(img_files: List[str],
-                  crs: str = None,
+                  crs: Optional[str] = None,
                   resolution: float = 10,
-                  offsets: Tuple[float, float] = None,
-                  region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
-                  input_no_data_value: float = None,
+                  offsets: Optional[Tuple[float, float]] = None,
+                  region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
+                  input_no_data_value: Optional[float] = None,
                   output_no_data_value: float = np.nan,
-                  bounds: rio.coords.BoundingBox = None,
+                  bounds: Optional[rio.coords.BoundingBox] = None,
                   algorithm=rio.enums.Resampling.cubic,
                   separate: bool = False,
                   dtype=np.float32,
-                  scale: float = None) -> np.ndarray:
+                  scale: Optional[float] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, str]:
     """
     :param vrts: A list of WarpedVRT objects to stack
     :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
@@ -290,6 +300,7 @@ def read_as_numpy(img_files: List[str],
     need_warped_vrt = (offsets is not None)
     # If we change image bounds
     nb_bands = None
+    out_crs = crs
     for f in img_files:
         with rio.open(f) as ds:
             if nb_bands is None:
@@ -299,10 +310,13 @@ def read_as_numpy(img_files: List[str],
                     raise ValueError("All image files need to have the same number of bands")
             if bounds is not None and ds.bounds != bounds:
                 need_warped_vrt = True
+                out_bounds = rio.coords.BoundingBox(*bounds)
             else:
-                bounds = ds.bounds
+                out_bounds = rio.coords.BoundingBox(*ds.bounds)
             # If we change projection
-            if crs is not None and crs != ds.crs:
+            if out_crs is None:
+                out_crs = ds.crs
+            if out_crs != ds.crs:
                 need_warped_vrt = True
             if ds.transform[0] != resolution:
                 need_warped_vrt = True
@@ -312,8 +326,8 @@ def read_as_numpy(img_files: List[str],
         datasets = [
             create_warped_vrt(f,
                               resolution,
-                              dst_bounds=bounds,
-                              dst_crs=crs,
+                              dst_bounds=out_bounds,
+                              dst_crs=out_crs,
                               nodata=input_no_data_value,
                               src_nodata=input_no_data_value,
                               resampling=algorithm,
@@ -323,32 +337,34 @@ def read_as_numpy(img_files: List[str],
     else:
         datasets = [rio.open(f, 'r') for f in img_files]
 
-    # Retrieve actual crs
-    crs = datasets[0].crs
-
-    # Read full img if region is None
-    if region is None:
-        region = datasets[0].bounds
-
-    # Convert region to window
-    if isinstance(region, BoundingBox):
-        windows = [
-            Window((region[0] - ds.bounds[0]) / ds.res[0], (region[1] - ds.bounds[1]) / ds.res[1],
-                   (region[2] - region[0]) / ds.res[0], (region[3] - region[1]) / ds.res[1])
-            for ds in datasets
-        ]
-    else:
-        windows = [
-            Window(region[0], region[1], region[2] - region[0], region[3] - region[1])
-            for ds in datasets
-        ]
-
     axis = 0
     # if vrts are bands of the same image
     if separate:
         axis = 1
-    np_stack = np.stack([ds.read(window=w, masked=True) for (ds, w) in zip(datasets, windows)],
-                        axis=axis)
+
+    # Read full img if region is None
+    if region is not None and not need_warped_vrt:
+        # Convert region to window
+        if isinstance(region, BoundingBox):
+            windows = []
+            for ds in datasets:
+                current_window = Window(
+                    (region[0] - ds.bounds[0]) / ds.res[0], (region[1] - ds.bounds[1]) / ds.res[1],
+                    (region[2] - region[0]) / ds.res[0], (region[3] - region[1]) / ds.res[1])
+                windows.append(current_window)
+        else:
+            windows = [
+                Window(region[0], region[1], region[2] - region[0], region[3] - region[1])
+                for ds in datasets
+            ]
+
+        np_stack = np.stack([ds.read(window=w, masked=True) for (ds, w) in zip(datasets, windows)],
+                            axis=axis)
+    else:
+        warnings.warn(
+            'region parameter is set but read_as_numpy requires to use WarpedVRT. The region parameter will be ignored'
+        )
+        np_stack = np.stack([ds.read(masked=True) for ds in datasets], axis=axis)
 
     # Close datasets
     for d in datasets:
@@ -363,15 +379,13 @@ def read_as_numpy(img_files: List[str],
     # Convert to float before casting to final dtype
     np_stack = np_stack.astype(dtype)
 
-    xcoords = np.linspace(bounds[0] + (0.5 + windows[0].col_off) * resolution,
-                          bounds[0] + (windows[0].col_off + np_stack.shape[3] - 0.5) * resolution,
+    xcoords = np.linspace(out_bounds.left + 0.5 * resolution, out_bounds.right - 0.5 * resolution,
                           np_stack.shape[3])
 
-    ycoords = np.linspace(bounds[3] - (windows[0].row_off + 0.5) * resolution,
-                          bounds[3] - (windows[0].row_off + np_stack.shape[2] - 0.5) * resolution,
+    ycoords = np.linspace(out_bounds.top - 0.5 * resolution, out_bounds.bottom + 0.5 * resolution,
                           np_stack.shape[2])
 
-    return np_stack, xcoords, ycoords, crs
+    return np_stack, xcoords, ycoords, out_crs
 
 
 def compute_latlon_bbox_from_region(bounds: BoundingBox, crs: str) -> BoundingBox:
@@ -390,8 +404,7 @@ def compute_latlon_bbox_from_region(bounds: BoundingBox, crs: str) -> BoundingBo
     return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
 
 
-def extract_bitmask(mask: Union[xr.DataArray, np.ndarray],
-                    bit: int = 0) -> Union[xr.DataArray, np.ndarray]:
+def extract_bitmask(mask: Union[xr.DataArray, np.ndarray], bit: int = 0) -> np.ndarray:
     """
     Extract a binary mask from the nth bit of a bit-encoded mask
 
@@ -399,27 +412,28 @@ def extract_bitmask(mask: Union[xr.DataArray, np.ndarray],
     :param bit: the index of the bit to extract
     :return: A binary mask of the nth bit of mask, with the same shape
     """
-    if type(mask) == xr.DataArray:
-        return mask.dims, mask.values.astype(int) >> bit & 1
+    if isinstance(mask, xr.DataArray):
+        return mask.values.astype(int) >> bit & 1
     else:
         return mask.astype(int) >> bit & 1
 
 
 def swath_resample(
-        latitudes: np.ndarray,
-        longitudes: np.ndarray,
-        target_crs: str,
-        target_bounds: rio.coords.BoundingBox,
-        target_resolution: float,
-        sigma: float,
-        nthreads: int = 6,
-        discrete_variables: np.ndarray = None,
-        continuous_variables: np.ndarray = None,
-        cutoff_sigma_mult: float = 2.,
-        strip_size: int = 1500000,
-        fill_value: float = np.nan,
-        discrete_fill_value: int = 0,
-        max_neighbours: int = 8) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    latitudes: np.ndarray,
+    longitudes: np.ndarray,
+    target_crs: str,
+    target_bounds: rio.coords.BoundingBox,
+    target_resolution: float,
+    sigma: float,
+    nthreads: int = 6,
+    discrete_variables: Optional[np.ndarray] = None,
+    continuous_variables: Optional[np.ndarray] = None,
+    cutoff_sigma_mult: float = 2.,
+    strip_size: int = 1500000,
+    fill_value: float = np.nan,
+    discrete_fill_value: int = 0,
+    max_neighbours: int = 8
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], np.ndarray, np.ndarray]:
     """
     This function wraps and optimizes pyresample in order to resample
     swath data (i.e. observations indexed by an array of irregular latitudes and longitudes).
@@ -482,8 +496,8 @@ def swath_resample(
         #print(f'{nb_strips=}')
 
         # Those list will recieve the outputs of assynchronous map operations by the threads pool
-        out_cvs = []
-        out_dvs = []
+        out_cvs_results = []
+        out_dvs_results = []
 
         # Iterate on strips
         for s in range(nb_strips):
@@ -521,11 +535,11 @@ def swath_resample(
 
                 # Map the partial function on each input discrete variable spearately
                 # This call is assynchronous (computation runs in background)
-                out_dv = executor.map(
+                out_dv_futures = executor.map(
                     resample_function,
                     [discrete_variables[:, :, i] for i in range(discrete_variables.shape[-1])])
                 # Keep tracks of pending results
-                out_dvs.append(out_dv)
+                out_dvs_results.append(out_dv_futures)
 
             # Process continuous variables
             if continuous_variables is not None:
@@ -540,22 +554,22 @@ def swath_resample(
                                             fill_value=fill_value)
 
                 # Map call on each variable separately, assynchronous
-                out_cv = executor.map(
+                out_cv_futures = executor.map(
                     resample_function,
                     [continuous_variables[:, :, i] for i in range(continuous_variables.shape[-1])])
                 # Keep track of pending results
-                out_cvs.append(out_cv)
+                out_cvs_results.append(out_cv_futures)
 
     if continuous_variables is not None:
         # This code concatenates resulting variable for each strip, effectively joining all pending calculation
-        out_cvs = [np.stack([c for c in v], axis=-1) for v in out_cvs]
+        out_cvs = [np.stack([c for c in v], axis=-1) for v in out_cvs_results]
         # And then stack strips
-        out_cv = np.concatenate(out_cvs, axis=0)
+        out_cv: Optional[np.ndarray] = np.concatenate(out_cvs, axis=0)
     else:
         out_cv = None
     if discrete_variables is not None:
         # This code concatenates resulting variable for each strip, effectively joining all pending calculation
-        out_dvs = [np.stack([c for c in v], axis=-1) for v in out_dvs]
+        out_dvs = [np.stack([c for c in v], axis=-1) for v in out_dvs_results]
         # And then stack strips
         out_dv = np.concatenate(out_dvs, axis=0)
     else:

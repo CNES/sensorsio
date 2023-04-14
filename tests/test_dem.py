@@ -9,7 +9,7 @@ import tempfile
 
 import pytest
 import rasterio as rio
-
+from pyproj import CRS
 from sensorsio import mgrs, srtm
 
 
@@ -106,7 +106,7 @@ def test_dem_on_mgrs_tile():
     assert s2_dem.elevation.shape == (10980, 10980)
     assert s2_dem.aspect.shape == (10980, 10980)
     assert s2_dem.slope.shape == (10980, 10980)
-    assert s2_dem.crs == 'EPSG:32631'
+    assert s2_dem.crs == CRS.from_string('EPSG:32631')
     assert s2_dem.transform == rio.Affine(10., 0, 399960.0, 0, -10., 4800000)
 
     stack = s2_dem.as_stack()

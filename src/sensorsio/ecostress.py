@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
-import dateutil
-import h5py
+import h5py  # type: ignore
 import numpy as np
 import pyproj
 import rasterio as rio
-import utm
+import utm  # type: ignore
 import xarray as xr
+from dateutil.parser import parse as parse_date
 
 from sensorsio import utils
 
@@ -19,7 +19,11 @@ class Ecostress():
     """
     ECostress dataset
     """
-    def __init__(self, lst_file: str, geom_file: str, cloud_file: str = None, rad_file: str = None):
+    def __init__(self,
+                 lst_file: str,
+                 geom_file: str,
+                 cloud_file: Optional[str] = None,
+                 rad_file: Optional[str] = None):
         """
 
         """
@@ -35,9 +39,9 @@ class Ecostress():
             end_date = str(ds['StandardMetadata/RangeEndingDate'][()])
             end_time = str(ds['StandardMetadata/RangeEndingTime'][()])
 
-            self.start_time = dateutil.parser.parse(start_date[1:-1] + "T" + start_time[1:-2])
+            self.start_time = parse_date(start_date[1:-1] + "T" + start_time[1:-2])
 
-            self.end_time = dateutil.parser.parse(end_date[1:-1] + "T" + end_time[1:-2])
+            self.end_time = parse_date(end_date[1:-1] + "T" + end_time[1:-2])
 
             # Parse bounds
             min_lon = ds['StandardMetadata/WestBoundingCoordinate'][()]
@@ -53,19 +57,19 @@ class Ecostress():
 
     def read_as_numpy(
         self,
-        crs: str = None,
+        crs: Optional[str] = None,
         resolution: float = 70,
-        region: Tuple[int, int, int, int] = None,
+        region: Optional[Tuple[int, int, int, int]] = None,
         no_data_value: float = np.nan,
         read_lst: bool = True,
         read_angles: bool = True,
         read_emissivities: bool = True,
-        bounds: rio.coords.BoundingBox = None,
+        bounds: Optional[rio.coords.BoundingBox] = None,
         nprocs: int = 4,
         strip_size: int = 375000,
-        dtype: np.dtype = np.float32
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
-               np.ndarray, str]:
+        dtype: np.dtype = np.dtype('float32')
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray],
+               Optional[np.ndarray], np.ndarray, Optional[np.ndarray], np.ndarray, np.ndarray, str]:
         """
         :param crs: Projection in which to read the image (will use WarpedVRT)
         :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
@@ -93,7 +97,7 @@ class Ecostress():
 
             # Handle region
             if region is None:
-                region = [0, 0, latitude.shape[0], latitude.shape[1]]
+                region = (0, 0, latitude.shape[0], latitude.shape[1])
 
             latitude = latitude[region[0]:region[2], region[1]:region[3]]
             longitude = longitude[region[0]:region[2], region[1]:region[3]]
@@ -106,7 +110,11 @@ class Ecostress():
                 _, _, zone, zl = utm.from_latlon(mean_latitude, mean_longitude)
 
                 south = zl < 'N'
-                crs = pyproj.CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south})
+                crs = pyproj.CRS.from_dict({
+                    'proj': 'utm',
+                    'zone': zone,
+                    'south': south
+                }).to_string()
 
             # Handle bounds if not available
             if bounds is None:
@@ -159,7 +167,10 @@ class Ecostress():
                     emis = np.array(lstDS[f'SDS/{em}'][region[0]:region[2], region[1]:region[3]])
                     # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
                     if em not in ('Emis1', 'Emis3'):
-                        invalid_mask = np.logical_or(invalid_mask, emis == 0)
+                        if invalid_mask is not None:
+                            invalid_mask = np.logical_or(invalid_mask, emis == 0)
+                        else:
+                            invalid_mask = emis == 0
                     emis = (0.49 + 0.002 * emis).astype(dtype)
                     vois.append(emis)
 
@@ -192,21 +203,31 @@ class Ecostress():
                                                                 region[1]:region[3]])
                     # Avoid using bands 1 and 3 for invalidity mask because those bands are filled with 0 after may 19th 2019
                     if rad not in ('radiance_1', 'radiance_3'):
-                        invalid_mask = np.logical_or(
-                            invalid_mask,
-                            np.logical_or(rad_arr == -9997,
-                                          np.logical_or(rad_arr == -9998, rad_arr == -9999)))
+                        if invalid_mask is not None:
+                            invalid_mask = np.logical_or(
+                                invalid_mask,
+                                np.logical_or(rad_arr == -9997,
+                                              np.logical_or(rad_arr == -9998, rad_arr == -9999)))
+                        else:
+                            invalid_mask = np.logical_or(
+                                rad_arr == -9997, np.logical_or(rad_arr == -9998, rad_arr == -9999))
                     rad_arr = rad_arr.astype(dtype)
                     vois.append(rad_arr)
 
         # Stack variables of intereset into a single array
-        vois = np.stack(vois, axis=-1)
-        vois = np.ma.masked_array(vois,
-                                  np.stack([invalid_mask for i in range(vois.shape[-1])], axis=-1))
-        vois_discretes = np.stack(vois_discretes, axis=-1)
-        vois_discretes = np.ma.masked_array(
-            vois_discretes,
-            np.stack([invalid_mask for i in range(vois_discretes.shape[-1])], axis=-1))
+        vois_arr = np.stack(vois, axis=-1)
+        vois_discretes_arr = np.stack(vois_discretes, axis=-1)
+
+        # Build the final masked array
+        if invalid_mask is not None:
+            vois_arr_masked: np.ma.MaskedArray = np.ma.masked_array(
+                vois_arr, np.stack([invalid_mask for i in range(vois_arr.shape[-1])], axis=-1))
+            vois_discretes_arr_masked: np.ma.MaskedArray = np.ma.masked_array(
+                vois_discretes_arr,
+                np.stack([invalid_mask for i in range(vois_discretes_arr.shape[-1])], axis=-1))
+        else:
+            vois_arr_masked = np.ma.masked_array(vois_arr)
+            vois_discretes_arr_masked = np.ma.masked_array(vois_discretes_arr)
 
         # If resolution is less than 69 (the largest pixel size in both directions), use 69 to determine sigma. Else use target resolution.
         sigma = (max(resolution, 69.) / np.pi) * np.sqrt(-2 * np.log(0.1))
@@ -221,8 +242,8 @@ class Ecostress():
             bounds,
             resolution,
             sigma,
-            continuous_variables=vois,
-            discrete_variables=vois_discretes,
+            continuous_variables=vois_arr_masked,
+            discrete_variables=vois_discretes_arr_masked,
             fill_value=no_data_value,
             nthreads=nprocs,
             strip_size=strip_size,
@@ -232,17 +253,19 @@ class Ecostress():
         lst_end = angles_end + (2 if read_lst else 0)
         emis_end = lst_end + (10 if read_emissivities else 0)
 
-        angles = result[:, :, :angles_end] if read_angles else None
-        lst = result[:, :, angles_end:lst_end] if read_lst else None
-        emissivities = result[:, :, lst_end:emis_end] if read_emissivities else None
-        radiances = result[:, :, emis_end:] if self.rad_file else None
+        angles: Optional[np.ndarray] = result[:, :, :angles_end] if read_angles else None
+        lst_out: Optional[np.ndarray] = result[:, :, angles_end:lst_end] if read_lst else None
+        emissivities: Optional[np.ndarray] = result[:, :,
+                                                    lst_end:emis_end] if read_emissivities else None
+        radiances: Optional[np.ndarray] = result[:, :, emis_end:] if self.rad_file else None
         qc = result_discretes[:, :, 0].astype(np.uint8)
-        clouds = result_discretes[:, :, 1].astype(np.uint8) if self.cloud_file else None
+        clouds: Optional[np.ndarray] = result_discretes[:, :, 1].astype(
+            np.uint8) if self.cloud_file else None
 
         # Unpack cloud mask
-        masks = None
+        masks: Optional[np.ndarray] = None
 
-        if self.cloud_file:
+        if self.cloud_file and clouds is not None:
             valid_mask = np.bitwise_and(clouds, 0b00000001) > 0
             cloud_mask = np.logical_or(
                 np.logical_or(
@@ -257,20 +280,21 @@ class Ecostress():
 
             masks = np.stack((cloud_mask, land_mask, sea_mask), axis=-1)
 
-        return lst, emissivities, radiances, angles, qc, masks, xcoords, ycoords, crs
+        return lst_out, emissivities, radiances, angles, qc, masks, xcoords, ycoords, crs
 
     def read_as_xarray(self,
-                       crs: str = None,
+                       crs: Optional[str] = None,
                        resolution: float = 70,
-                       region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
+                       region: Optional[Union[Tuple[int, int, int, int],
+                                              rio.coords.BoundingBox]] = None,
                        no_data_value: float = np.nan,
                        read_lst: bool = True,
                        read_angles: bool = True,
                        read_emissivities: bool = True,
-                       bounds: rio.coords.BoundingBox = None,
+                       bounds: Optional[rio.coords.BoundingBox] = None,
                        nprocs: int = 4,
                        strip_size: int = 375000,
-                       dtype: np.dtype = np.float32):
+                       dtype: np.dtype = np.dtype('float32')):
         """
         :param crs: Projection in which to read the image (will use WarpedVRT)
         :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT

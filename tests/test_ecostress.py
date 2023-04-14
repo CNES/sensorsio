@@ -12,11 +12,11 @@ from typing import Optional, Tuple
 import numpy as np
 import pytest
 import rasterio as rio
-
+from pyproj import CRS
 from sensorsio import ecostress
 
 
-def get_ecostress_files() -> str:
+def get_ecostress_files() -> Tuple[str, str, str, str]:
     """
     Retrieve ecostress files from env var
     """
@@ -72,7 +72,7 @@ class ReadAsNumpyParams:
     """
     crs: Optional[str] = None
     resolution: float = 70
-    region: Tuple[int, int, int, int] = (0, 0, 100, 100)
+    region: Optional[Tuple[int, int, int, int]] = (0, 0, 100, 100)
     no_data_value: float = np.nan
     read_lst: bool = True
     read_angles: bool = True
@@ -95,6 +95,8 @@ class ReadAsNumpyParams:
         if self.bounds is not None:
             return (int(np.ceil((self.bounds[3] - self.bounds[1]) / self.resolution)),
                     int(np.ceil((self.bounds[2] - self.bounds[0]) / self.resolution)))
+
+        raise NotImplementedError
 
 
 @pytest.mark.parametrize(
@@ -119,8 +121,8 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
         **parameters.__dict__)
     eco_xr = ecostress_dataset.read_as_xarray(**parameters.__dict__)
 
-    assert crs == 'epsg:32631'
-    assert eco_xr.attrs['crs'] == 'epsg:32631'
+    assert CRS.from_string(crs) == CRS.from_string('epsg:32631')
+    assert CRS.from_string(eco_xr.attrs['crs']) == CRS.from_string('epsg:32631')
 
     assert radiances is not None
     assert radiances.shape == (*parameters.expected_shape(), 5)

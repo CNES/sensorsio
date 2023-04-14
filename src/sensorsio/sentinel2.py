@@ -8,17 +8,17 @@ import warnings
 import xml.etree.ElementTree as ET
 from collections import namedtuple
 from enum import Enum
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
-import dateutil
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio as rio
 import xarray as xr
-from scipy import ndimage
-from shapely import geometry
-from sklearn.linear_model import LinearRegression
+from dateutil.parser import parse as parse_date
+from scipy import ndimage  # type: ignore
+from shapely import geometry  # type: ignore
+from sklearn.linear_model import LinearRegression  # type: ignore
 
 from sensorsio import utils
 
@@ -49,7 +49,7 @@ def find_tile_orbit_pairs(bounds: rio.coords.BoundingBox, crs='epsg:4326'):
     aoi = geometry.Polygon([[wgs84_bounds[0], wgs84_bounds[1]], [wgs84_bounds[0], wgs84_bounds[3]],
                             [wgs84_bounds[2], wgs84_bounds[3]], [wgs84_bounds[2], wgs84_bounds[1]]])
     mgrs_df = gpd.read_file(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/mgrs_tiles.shp'))
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/mgrs_tiles.gpkg'))
     orbits_df = gpd.read_file(
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/orbits.gpkg'))
     intersections = []
@@ -77,7 +77,10 @@ class Sentinel2:
     """
     Class for Sentinel2 L2A (MAJA format) product reading
     """
-    def __init__(self, product_dir: str, offsets: Tuple[float, float] = None, parse_xml=True):
+    def __init__(self,
+                 product_dir: str,
+                 offsets: Optional[Tuple[float, float]] = None,
+                 parse_xml=True):
         """
         Constructor
 
@@ -102,7 +105,7 @@ class Sentinel2:
         self.tile = self.product_name[36:41]
 
         # Get acquisition date
-        self.date = dateutil.parser.parse(self.product_name[11:19])
+        self.date = parse_date(self.product_name[11:19])
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
 
@@ -308,7 +311,8 @@ class Sentinel2:
         B12: 60
     }
 
-    def PSF(bands: List[Band], resolution: float = 0.5, half_kernel_width: int = None):
+    @staticmethod
+    def PSF(bands: List[Band], resolution: float = 0.5, half_kernel_width: Optional[int] = None):
         """
         Generate PSF kernels from list of bands
     
@@ -411,14 +415,14 @@ class Sentinel2:
         readAtmos: bool = False,
         res: Res = Res.R1,
         scale: float = 10000,
-        crs: str = None,
+        crs: Optional[str] = None,
         resolution: float = 10,
-        region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
+        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
         no_data_value: float = np.nan,
-        bounds: rio.coords.BoundingBox = None,
+        bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.float32
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+        dtype: np.dtype = np.dtype('float32'),
+    ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray], np.ndarray, np.ndarray, str]:
         """
         Read bands from Sentinel2 products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -441,23 +445,21 @@ class Sentinel2:
                  the y coords as a np.ndarray of shape [height],
                  the crs as a string
         """
-        np_arr = None
-        xcoords = None
-        ycoords = None
         if len(bands):
             img_files = [self.build_band_path(b, band_type) for b in bands]
-            np_arr, xcoords, ycoords, crs = utils.read_as_numpy(img_files,
-                                                                crs=crs,
-                                                                resolution=resolution,
-                                                                offsets=self.offsets,
-                                                                region=region,
-                                                                output_no_data_value=no_data_value,
-                                                                input_no_data_value=-10000,
-                                                                bounds=bounds,
-                                                                algorithm=algorithm,
-                                                                separate=True,
-                                                                dtype=dtype,
-                                                                scale=scale)
+            np_arr, xcoords, ycoords, out_crs = utils.read_as_numpy(
+                img_files,
+                crs=crs,
+                resolution=resolution,
+                offsets=self.offsets,
+                region=region,
+                output_no_data_value=no_data_value,
+                input_no_data_value=-10000,
+                bounds=bounds,
+                algorithm=algorithm,
+                separate=True,
+                dtype=dtype,
+                scale=scale)
 
             # Skip first dimension
             np_arr = np_arr[0, ...]
@@ -495,29 +497,30 @@ class Sentinel2:
                                                       bounds=bounds,
                                                       algorithm=algorithm,
                                                       separate=True,
-                                                      dtype=np.float,
+                                                      dtype=np.dtype('float32'),
                                                       scale=None)
             # Normalize
             np_arr_atm = np_arr_atm[:, 0, ...]
             np_arr_atm[1] = np_arr_atm[1] / 200
 
         # Return plain numpy array
-        return np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs
+        return np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, out_crs
 
-    def read_as_xarray(self,
-                       bands: List[Band],
-                       band_type: BandType = FRE,
-                       masks: List[Mask] = ALL_MASKS,
-                       res: Res = Res.R1,
-                       readAtmos: bool = False,
-                       scale: float = 10000,
-                       crs: str = None,
-                       resolution: float = 10,
-                       region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
-                       no_data_value: float = np.nan,
-                       bounds: rio.coords.BoundingBox = None,
-                       algorithm=rio.enums.Resampling.cubic,
-                       dtype: np.dtype = np.float32) -> xr.Dataset:
+    def read_as_xarray(
+        self,
+        bands: List[Band],
+        band_type: BandType = FRE,
+        masks: List[Mask] = ALL_MASKS,
+        res: Res = Res.R1,
+        readAtmos: bool = False,
+        scale: float = 10000,
+        crs: Optional[str] = None,
+        resolution: float = 10,
+        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
+        no_data_value: float = np.nan,
+        bounds: Optional[rio.coords.BoundingBox] = None,
+        algorithm=rio.enums.Resampling.cubic,
+        dtype: np.dtype = np.dtype('float32')) -> xr.Dataset:
         """
         Read bands from Sentinel2 products as a numpy
 
@@ -543,6 +546,7 @@ class Sentinel2:
         vars = {}
         for i in range(len(bands)):
             vars[bands[i].value] = (["t", "y", "x"], np_arr[None, i, ...])
+        if np_arr_msk is not None:
             for i in range(len(masks)):
                 vars[masks[i].value] = (["t", "y", "x"], np_arr_msk[None, i, ...])
         if np_arr_atm is not None:
@@ -563,10 +567,7 @@ class Sentinel2:
         return xarr
 
     #@profile
-    def upsample_angular_grid(self,
-                              grid: np.ndarray,
-                              res: Res = Res.R1,
-                              order: int = 1) -> np.ndarray:
+    def upsample_angular_grid(self, grid: np.ndarray, res: Res = Res.R1, order: int = 1) -> ndimage:
         """
         upsample given angular grid at target resolution
         """
@@ -665,6 +666,7 @@ class Sentinel2:
             self.parse_xml()
 
         # Call up-sampling routine
+        assert self.sun_angles is not None
         return self.upsample_by_viewing_directions(self.sun_angles.zenith,
                                                    self.sun_angles.azimuth,
                                                    res,
@@ -682,6 +684,7 @@ class Sentinel2:
         if self.incidence_angles is None:
             self.parse_xml()
 
+        assert self.incidence_angles is not None
         band_angles = self.incidence_angles[band]
 
         # Get path to detector masks

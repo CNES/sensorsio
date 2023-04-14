@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
+import affine  # type: ignore
 import numpy as np
 import rasterio as rio
 import xarray as xr
@@ -148,8 +149,12 @@ class SRTM:
         bounds: BoundingBox,
         no_data_value: float = np.nan,
         algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.float32,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+        dtype: np.dtype = np.dtype('float32'),
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, str, affine.Affine]:
+        """
+        read_as_numpy method
+        """
+
         assert bounds is not None
         dst_transform = rio.Affine(resolution, 0.0, bounds.left, 0.0, -resolution, bounds.top)
         dst_size_x = int(np.ceil((bounds.right - bounds.left) / resolution))
@@ -186,13 +191,13 @@ class SRTM:
         )
 
     def read_as_xarray(
-        self,
-        crs: str,
-        resolution: float,
-        bounds: BoundingBox,
-        no_data_value: float = np.nan,
-        algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.float32,
+            self,
+            crs: str,
+            resolution: float,
+            bounds: BoundingBox,
+            no_data_value: float = np.nan,
+            algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic,
+            dtype: np.dtype = np.dtype('float32'),
     ) -> xr.Dataset:
         (
             np_arr_height,
@@ -242,7 +247,7 @@ def get_dem_mgrs_tile(tile: str, base_dir: str = "/datalake/static_aux/MNT/SRTM_
         dst_dem[0, :, :].astype(np.int16),
         dst_dem[1, :, :].astype(np.int16),
         dst_dem[2, :, :].astype(np.int16),
-        mgrs_crs,
+        mgrs_crs.to_string(),
         dst_dem_transform,
     )
     return mgrs_dem

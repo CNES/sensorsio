@@ -12,7 +12,6 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import pytest
 import rasterio as rio
-
 from sensorsio import mgrs, sentinel2
 
 
@@ -153,11 +152,12 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
         **parameters.__dict__)
 
     assert bands_arr.shape == (len(parameters.bands), *parameters.expected_shape())
-    assert mask_arr.shape == (len(parameters.masks), *parameters.expected_shape())
+    assert mask_arr is not None and mask_arr.shape == (len(
+        parameters.masks), *parameters.expected_shape())
     assert (~np.isnan(bands_arr)).sum() > 0
 
     if parameters.readAtmos:
-        assert atm_arr.shape == (2, *parameters.expected_shape())
+        assert atm_arr is not None and atm_arr.shape == (2, *parameters.expected_shape())
     else:
         assert atm_arr is None
 

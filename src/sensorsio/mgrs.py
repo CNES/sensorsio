@@ -5,13 +5,13 @@
 import os
 from functools import lru_cache
 
-import fiona
+import fiona  # type: ignore
 import numpy as np
 import rasterio as rio
 from pyproj import CRS, Transformer
 from rasterio.coords import BoundingBox
-from shapely import transform
-from shapely.geometry import Polygon
+from shapely import transform  # type: ignore
+from shapely.geometry import Polygon  # type: ignore
 
 
 @lru_cache

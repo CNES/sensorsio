@@ -7,16 +7,16 @@ This module contains tests for the Ecostress driver
 import datetime
 import os
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import pytest
 import rasterio as rio
-
+from pyproj import CRS
 from sensorsio import master
 
 
-def get_master_files() -> str:
+def get_master_files() -> Tuple[str, str]:
     """
     Retrieve Master files from env var
     """
@@ -50,9 +50,9 @@ class ReadAsNumpyParams:
     """
     Class to store read_as_numpy parameters
     """
-    crs: str = None
+    crs: Optional[str] = None
     resolution: float = 30
-    region: Tuple[int, int, int, int] = (0, 0, 100, 100)
+    region: Optional[Tuple[int, int, int, int]] = (0, 0, 100, 100)
     bounds: rio.coords.BoundingBox = None
     no_data_value: float = np.nan
     nprocs: int = 4
@@ -72,6 +72,8 @@ class ReadAsNumpyParams:
         if self.bounds is not None:
             return (int(np.ceil((self.bounds[3] - self.bounds[1]) / self.resolution)),
                     int(np.ceil((self.bounds[2] - self.bounds[0]) / self.resolution)))
+
+        raise NotImplementedError
 
 
 @pytest.mark.parametrize(
@@ -98,7 +100,7 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
     assert lst.shape == (*parameters.expected_shape(), 1)
     assert emis.shape == (*parameters.expected_shape(), 5)
     assert angles.shape == (*parameters.expected_shape(), 4)
-    assert crs == 'epsg:32611'
+    assert CRS.from_string(crs) == CRS.from_string('epsg:32611')
 
     assert 'LST' in master_xr.variables
     for i in range(5):

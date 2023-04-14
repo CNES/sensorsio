@@ -5,13 +5,13 @@
 import glob
 import os
 from enum import Enum
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
-import dateutil
 import geopandas as gpd
 import numpy as np
 import rasterio as rio
 import xarray as xr
+from dateutil.parser import parse as parse_date
 
 from sensorsio import utils
 
@@ -33,7 +33,7 @@ class Venus:
     """
     Class for Venus L2A (MAJA format) product reading
     """
-    def __init__(self, product_dir, offsets: Tuple[float] = None):
+    def __init__(self, product_dir, offsets: Optional[Tuple[float, float]] = None):
         """
         Constructor
         """
@@ -51,7 +51,7 @@ class Venus:
         self.site = self.product_name[33:41]
 
         # Get acquisition date
-        self.date = dateutil.parser.parse(self.product_name[9:17])
+        self.date = parse_date(self.product_name[9:17])
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
 
@@ -156,7 +156,8 @@ class Venus:
     # Resolution
     RES = {B1: 5, B2: 5, B3: 5, B4: 5, B5: 5, B6: 5, B7: 5, B8: 5, B9: 5, B10: 5, B11: 5, B12: 5}
 
-    def PSF(bands: List[Band], resolution: float = 0.5, half_kernel_width: int = None):
+    @staticmethod
+    def PSF(bands: List[Band], resolution: float = 0.5, half_kernel_width: Optional[int] = None):
         """
         Generate PSF kernels from list of bands
 
@@ -215,20 +216,20 @@ class Venus:
         return p[0]
 
     def read_as_numpy(
-            self,
-            bands: List[Band],
-            band_type: BandType = FRE,
-            masks: List[Mask] = ALL_MASKS,
-            mask_res: MaskRes = MaskRes.XS,
-            scale: float = 1000,
-            crs: str = None,
-            resolution: float = 10,
-            region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
-            no_data_value: float = np.nan,
-            bounds: rio.coords.BoundingBox = None,
-            algorithm=rio.enums.Resampling.cubic,
-            dtype: np.dtype = np.float32
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+        self,
+        bands: List[Band],
+        band_type: BandType = FRE,
+        masks: List[Mask] = ALL_MASKS,
+        mask_res: MaskRes = MaskRes.XS,
+        scale: float = 1000,
+        crs: Optional[str] = None,
+        resolution: float = 10,
+        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
+        no_data_value: float = np.nan,
+        bounds: Optional[rio.coords.BoundingBox] = None,
+        algorithm=rio.enums.Resampling.cubic,
+        dtype: np.dtype = np.dtype('float32')
+    ) -> Tuple[np.ndarray, Optional[np.ndarray], np.ndarray, np.ndarray, str]:
         """
         Read bands from Venus products as a numpy ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -288,19 +289,20 @@ class Venus:
         # Return plain numpy array
         return np_arr, np_arr_msk, xcoords, ycoords, crs
 
-    def read_as_xarray(self,
-                       bands: List[Band],
-                       band_type: BandType = FRE,
-                       masks: List[Mask] = ALL_MASKS,
-                       mask_res: MaskRes = MaskRes.XS,
-                       scale: float = 1000,
-                       crs: str = None,
-                       resolution: float = 10,
-                       region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None,
-                       no_data_value: float = np.nan,
-                       bounds: rio.coords.BoundingBox = None,
-                       algorithm=rio.enums.Resampling.cubic,
-                       dtype: np.dtype = np.float32) -> xr.Dataset:
+    def read_as_xarray(
+        self,
+        bands: List[Band],
+        band_type: BandType = FRE,
+        masks: List[Mask] = ALL_MASKS,
+        mask_res: MaskRes = MaskRes.XS,
+        scale: float = 1000,
+        crs: Optional[str] = None,
+        resolution: float = 10,
+        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
+        no_data_value: float = np.nan,
+        bounds: Optional[rio.coords.BoundingBox] = None,
+        algorithm=rio.enums.Resampling.cubic,
+        dtype: np.dtype = np.dtype('float32')) -> xr.Dataset:
         """
         Read bands from Venus products as a xarray
 
@@ -326,8 +328,9 @@ class Venus:
         vars = {}
         for i in range(len(bands)):
             vars[bands[i].value] = (["t", "y", "x"], np_arr[None, i, ...])
-            for i in range(len(masks)):
-                vars[masks[i].value] = (["t", "y", "x"], np_arr_msk[None, i, ...])
+            if np_arr_msk is not None:
+                for i in range(len(masks)):
+                    vars[masks[i].value] = (["t", "y", "x"], np_arr_msk[None, i, ...])
 
         xarr = xr.Dataset(vars,
                           coords={

@@ -5,15 +5,15 @@
 
 import glob
 import os
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import pyproj
 import rasterio as rio
-import utm
+import utm  # type: ignore
 import xarray as xr
-from pyhdf.SD import *
+from pyhdf.SD import SD  # type: ignore
 
 from sensorsio import utils
 
@@ -46,14 +46,14 @@ class Master():
         return f'{self.acquisition_date}'
 
     def read_as_numpy(self,
-                      crs: str = None,
+                      crs: Optional[str] = None,
                       resolution: float = 30,
-                      region: Tuple[int, int, int, int] = None,
-                      bounds: rio.coords.BoundingBox = None,
+                      region: Optional[Tuple[int, int, int, int]] = None,
+                      bounds: Optional[rio.coords.BoundingBox] = None,
                       no_data_value: float = np.nan,
                       nprocs: int = 4,
                       strip_size: int = 375000,
-                      dtype: np.dtype = np.float32):
+                      dtype: np.dtype = np.dtype('float32')):
 
         # Read master LST
         with rio.open(self.l2a_lst_file) as ds:
@@ -79,7 +79,7 @@ class Master():
 
         # Handle region
         if region is None:
-            region = [0, 0, master_lat.shape[0], master_lat.shape[1]]
+            region = (0, 0, master_lat.shape[0], master_lat.shape[1])
 
         master_lat = master_lat[region[0]:region[2], region[1]:region[3]]
         master_lon = master_lon[region[0]:region[2], region[1]:region[3]]
@@ -92,7 +92,7 @@ class Master():
             _, _, zone, zl = utm.from_latlon(mean_master_lat, mean_master_lon)
 
             south = zl < 'N'
-            crs = pyproj.CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south})
+            crs = pyproj.CRS.from_dict({'proj': 'utm', 'zone': zone, 'south': south}).to_string()
 
         # Handle bounds if not available
         if bounds is None:
@@ -143,14 +143,14 @@ class Master():
         return lst, emis, angles, xcoords, ycoords, crs
 
     def read_as_xarray(self,
-                       crs: str = None,
+                       crs: Optional[str] = None,
                        resolution: float = 30,
-                       region: Tuple[int, int, int, int] = None,
-                       bounds: rio.coords.BoundingBox = None,
+                       region: Optional[Tuple[int, int, int, int]] = None,
+                       bounds: Optional[rio.coords.BoundingBox] = None,
                        no_data_value: float = np.nan,
                        nprocs: int = 4,
                        strip_size: int = 375000,
-                       dtype: np.dtype = np.float32):
+                       dtype: np.dtype = np.dtype('float32')):
 
         lst, emis, angles, xcoords, ycoords, crs = self.read_as_numpy(crs, resolution, region,
                                                                       bounds, no_data_value, nprocs,

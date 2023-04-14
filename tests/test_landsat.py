@@ -12,7 +12,6 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import pytest
 import rasterio as rio
-
 from sensorsio import landsat
 
 
@@ -52,7 +51,7 @@ class ReadAsNumpyParams:
         default_factory=lambda: landsat.Landsat.GROUP_SR + landsat.Landsat.GROUP_ST)
     masks: List[landsat.Landsat.Mask] = field(default_factory=lambda: landsat.Landsat.ALL_MASKS)
     crs: Optional[str] = None
-    resolution: float = 10
+    resolution: float = 30
     region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None
     no_data_value: float = np.nan
     bounds: rio.coords.BoundingBox = None
@@ -69,17 +68,17 @@ class ReadAsNumpyParams:
                         int((self.region[2] - self.region[0]) / self.resolution))
             return (int((self.region[3] - self.region[1])), int((self.region[2] - self.region[0])))
         if self.bounds is not None:
-            return (int((self.bounds[3] - self.bounds[1]) / self.resolution),
-                    int((self.bounds[2] - self.bounds[0]) / self.resolution))
+            return (int(np.ceil((self.bounds[3] - self.bounds[1]) / self.resolution)),
+                    int(np.ceil((self.bounds[2] - self.bounds[0]) / self.resolution)))
 
-        return (int(10980 * 10 / self.resolution), int(10980 * 10 / self.resolution))
+        raise NotImplementedError
 
 
 @pytest.mark.requires_test_data
 @pytest.mark.parametrize(
     "parameters",
     [
-        # Use region to restrict source reading with bounding box
+        # # Use region to restrict source reading with bounding box
         ReadAsNumpyParams(
             region=rio.coords.BoundingBox(left=534000, bottom=1451500., right=534200, top=1451700.)
         ),
@@ -105,12 +104,14 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
     # Read as numpy part
     bands_arr, mask_arr, xcoords, ycoords, crs = ls8_dataset.read_as_numpy(**parameters.__dict__)
 
-    assert bands_arr.shape == (len(parameters.bands), *parameters.expected_shape())
-    assert mask_arr.shape == (len(parameters.masks), *parameters.expected_shape())
+    assert bands_arr is not None and bands_arr.shape == (len(
+        parameters.bands), *parameters.expected_shape())
+    assert mask_arr is not None and mask_arr.shape == (len(
+        parameters.masks), *parameters.expected_shape())
     assert (~np.isnan(bands_arr)).sum() > 0
 
-    assert ycoords.shape == (parameters.expected_shape()[0], )
-    assert xcoords.shape == (parameters.expected_shape()[1], )
+    assert ycoords is not None and ycoords.shape == (parameters.expected_shape()[0], )
+    assert xcoords is not None and xcoords.shape == (parameters.expected_shape()[1], )
 
     if parameters.crs is not None:
         assert crs == parameters.crs
@@ -119,6 +120,8 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
 
     # Test read as xarray part
     ls8_xr = ls8_dataset.read_as_xarray(**parameters.__dict__)
+
+    assert ls8_xr
 
     for c in ['t', 'x', 'y']:
         assert c in ls8_xr.coords

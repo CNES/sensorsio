@@ -1,4 +1,4 @@
-1  #!/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
 """ Modeling and access tools for WorldClim 2.0 data """

@@ -12,7 +12,6 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import pytest
 import rasterio as rio
-
 from sensorsio import venus
 
 
@@ -127,7 +126,7 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
     bands_arr, mask_arr, xcoords, ycoords, crs = vns_dataset.read_as_numpy(**parameters.__dict__)
 
     assert bands_arr.shape == (len(parameters.bands), *parameters.expected_shape())
-    assert mask_arr.shape == (len(parameters.masks), *parameters.expected_shape())
+    assert mask_arr and mask_arr.shape == (len(parameters.masks), *parameters.expected_shape())
     assert (~np.isnan(bands_arr)).sum() > 0
 
     assert ycoords.shape == (parameters.expected_shape()[0], )

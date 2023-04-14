@@ -10,7 +10,7 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 import rasterio as rio
-
+from pyproj import CRS
 from sensorsio import utils
 
 
@@ -69,11 +69,11 @@ class ImageConfig:
     """
     size: Tuple[int, int] = (10, 10)
     nb_bands: int = 3
-    dtype: np.dtype = np.int32
+    dtype: np.dtype = np.dtype('int32')
     crs: str = 'EPSG:32631'
     resolution: float = 10.
     origin: Tuple[float, float] = (399960.0, 4800000.0)
-    nodata: Optional[Union[np.float32, np.int16]] = -10000
+    nodata: Optional[Union[np.float32, np.int16, int]] = -10000
 
 
 def generate_dummy_image(
@@ -271,13 +271,15 @@ def test_read_as_numpy():
         with tempfile.NamedTemporaryFile(suffix='.tif') as temporary_file3:
             cfg3 = ImageConfig(nb_bands=3, crs='epsg:2154', origin=(499820, 6350510))
             img3_path, img3_arr = generate_dummy_image(temporary_file3.name, cfg3)
+            with rio.open(img3_path) as ds:
+                assert ds.crs == 'epsg:2154'
 
             out_stack, xcoords, ycoords, crs = utils.read_as_numpy(
                 [img1_path, img2_path, img3_path], resolution=10)
             assert out_stack.shape == (3, 3, 10, 10)
             assert xcoords.shape == (10, )
             assert ycoords.shape == (10, )
-            assert crs == cfg1.crs
+            assert crs == CRS.from_string(cfg1.crs)
 
             # Use a different target_crs
             out_stack, xcoords, ycoords, crs = utils.read_as_numpy(
@@ -292,28 +294,33 @@ def test_read_as_numpy():
                 [img1_path, img2_path, img3_path],
                 resolution=10,
                 crs=cfg3.crs,
-                bounds=(cfg3.origin[0], cfg3.origin[1], cfg3.origin[0] + 50, cfg3.origin[1] + 50))
+                bounds=(cfg3.origin[0], cfg3.origin[1] - 50, cfg3.origin[0] + 50, cfg3.origin[1]))
             assert out_stack.shape == (3, 3, 5, 5)
             assert xcoords.shape == (5, )
             assert ycoords.shape == (5, )
+            np.testing.assert_allclose(
+                xcoords,
+                np.arange(cfg3.origin[0] + 5, cfg3.origin[0] + 5 + 10 * xcoords.shape[0], 10.))
+            np.testing.assert_allclose(
+                ycoords,
+                np.arange(cfg3.origin[1] - 5, cfg3.origin[1] - 5 - 10 * ycoords.shape[0], -10.))
+
             assert crs == cfg3.crs
 
             # use region as BoundingBox
             out_stack, xcoords, ycoords, crs = utils.read_as_numpy(
-                [img1_path, img2_path, img3_path],
-                resolution=10,
-                crs=cfg1.crs,
+                [img1_path, img2_path],
                 region=rio.coords.BoundingBox(cfg1.origin[0], cfg1.origin[1] - 50,
                                               cfg1.origin[0] + 50, cfg1.origin[1]))
-            assert out_stack.shape == (3, 3, 5, 5)
+            assert out_stack.shape == (2, 3, 5, 5)
             assert xcoords.shape == (5, )
             assert ycoords.shape == (5, )
             assert crs == cfg1.crs
 
             # use region as Tuple[int,int,int,int]
-            out_stack, xcoords, ycoords, crs = utils.read_as_numpy(
-                [img1_path, img2_path, img3_path], resolution=10, crs=cfg1.crs, region=(0, 0, 5, 5))
-            assert out_stack.shape == (3, 3, 5, 5)
+            out_stack, xcoords, ycoords, crs = utils.read_as_numpy([img1_path, img2_path],
+                                                                   region=(0, 0, 5, 5))
+            assert out_stack.shape == (2, 3, 5, 5)
             assert xcoords.shape == (5, )
             assert ycoords.shape == (5, )
             assert crs == cfg1.crs
