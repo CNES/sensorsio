@@ -25,7 +25,7 @@ from rasterio.warp import transform_bounds
 def rgb_render(
     data: np.ndarray,
     clip: int = 2,
-    bands: List[int] = [2, 1, 0],
+    bands: Optional[List[int]] = None,
     norm: bool = True,
     dmin: Optional[np.ndarray] = None,
     dmax: Optional[np.ndarray] = None
@@ -40,8 +40,10 @@ def rgb_render(
 
     :returns: a tuple of data ready for matplotlib, dmin, dmax
     """
-    assert (len(bands) == 1 or len(bands) == 3)
-    assert (clip >= 0 and clip <= 100)
+    if bands is None:
+        bands = [2, 1, 0]
+    assert len(bands) == 1 or len(bands) == 3
+    assert 0 <= clip <= 100
 
     # Extract bands from data
     data_ready = np.take(data, bands, axis=0)
@@ -179,17 +181,17 @@ def create_warped_vrt(filename: str,
 
 def bb_transform(source_crs: str,
                  target_crs: str,
-                 bb: BoundingBox,
+                 bounding_box: BoundingBox,
                  all_corners: bool = False) -> BoundingBox:
     """
     Transform a bounding box by solely looking at its 2 corners (upper-left and lower-right)
     If all_corners is True, also include upper-right and lower-left
     """
-    source_x = [bb.left, bb.right]
-    source_y = [bb.bottom, bb.top]
+    source_x = [bounding_box.left, bounding_box.right]
+    source_y = [bounding_box.bottom, bounding_box.top]
     if all_corners:
-        source_x += [bb.left, bb.right]
-        source_y += [bb.top, bb.bottom]
+        source_x += [bounding_box.left, bounding_box.right]
+        source_y += [bounding_box.top, bounding_box.bottom]
     if source_crs != target_crs:
         target_x, target_y = rio.warp.transform(source_crs, target_crs, source_x, source_y)
         xmin = min(target_x)
@@ -197,35 +199,35 @@ def bb_transform(source_crs: str,
         ymin = min(target_y)
         ymax = max(target_y)
         return BoundingBox(xmin, ymin, xmax, ymax)
-    return bb
+    return bounding_box
 
 
-def bb_intersect(bb: Iterable[BoundingBox]) -> BoundingBox:
+def bb_intersect(bounding_box: Iterable[BoundingBox]) -> BoundingBox:
     """
     Compute the intersection of a list of bounding boxes
 
     :param bb: A list of BoundingBox objects
     :return: The intersection as a BoundingBox object
     """
-    bb_iter = iter(bb)
+    bb_iter = iter(bounding_box)
     first_elem = next(bb_iter)
     xmin = first_elem[0]
     xmax = first_elem[2]
     ymin = first_elem[1]
     ymax = first_elem[3]
-    for b in bb_iter:
-        if b[0] > xmax or b[2] < xmin or b[1] > ymax or b[3] < ymin:
+    for box in bb_iter:
+        if box[0] > xmax or box[2] < xmin or box[1] > ymax or box[3] < ymin:
             raise ValueError('Bounding Box intersection is empty!')
 
-        xmin = max(xmin, b[0])
-        xmax = min(xmax, b[2])
-        ymin = max(ymin, b[1])
-        ymax = min(ymax, b[3])
+        xmin = max(xmin, box[0])
+        xmax = min(xmax, box[2])
+        ymin = max(ymin, box[1])
+        ymax = min(ymax, box[3])
 
     return BoundingBox(left=xmin, bottom=ymin, right=xmax, top=ymax)
 
 
-def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
+def bb_snap(bounding_box: BoundingBox, align: float = 20) -> BoundingBox:
     """
     Snap a bounding box to multiple of align parameter
 
@@ -234,10 +236,10 @@ def bb_snap(bb: BoundingBox, align: float = 20) -> BoundingBox:
 
     :return: The snapped bounding box as a BoundingBox object
     """
-    left = align * np.floor(bb[0] / align)
-    right = left + align * (1 + np.floor((bb[2] - bb[0]) / align))
-    bottom = align * np.floor(bb[1] / align)
-    top = bottom + align * (1 + np.floor((bb[3] - bb[1]) / align))
+    left = align * np.floor(bounding_box[0] / align)
+    right = left + align * (1 + np.floor((bounding_box[2] - bounding_box[0]) / align))
+    bottom = align * np.floor(bounding_box[1] / align)
+    top = bottom + align * (1 + np.floor((bounding_box[3] - bounding_box[1]) / align))
     return BoundingBox(left=left, bottom=bottom, right=right, top=top)
 
 
@@ -298,7 +300,7 @@ def read_as_numpy(img_files: List[str],
     assert len(img_files) > 0
 
     # Check if we need resampling or not
-    need_warped_vrt = (offsets is not None)
+    need_warped_vrt = offsets is not None
     # If we change image bounds
     nb_bands = None
     out_crs = crs
@@ -306,22 +308,22 @@ def read_as_numpy(img_files: List[str],
     if out_crs is None:
         out_crs = rio.open(img_files[0]).crs
 
-    for f in img_files:
-        with rio.open(f) as ds:
+    for img_file in img_files:
+        with rio.open(img_file) as rio_dataset:
             if nb_bands is None:
-                nb_bands = ds.count
+                nb_bands = rio_dataset.count
             else:
-                if nb_bands != ds.count:
+                if nb_bands != rio_dataset.count:
                     raise ValueError("All image files need to have the same number of bands")
-            if bounds is not None and ds.bounds != bounds:
+            if bounds is not None and rio_dataset.bounds != bounds:
                 need_warped_vrt = True
                 out_bounds = rio.coords.BoundingBox(*bounds)
             else:
-                out_bounds = rio.coords.BoundingBox(*ds.bounds)
+                out_bounds = rio.coords.BoundingBox(*rio_dataset.bounds)
             # If we change projection
-            if out_crs != ds.crs:
+            if out_crs != rio_dataset.crs:
                 need_warped_vrt = True
-            if ds.transform[0] != resolution:
+            if rio_dataset.transform[0] != resolution:
                 need_warped_vrt = True
 
     # If warped vrts are needed, create them
@@ -348,12 +350,12 @@ def read_as_numpy(img_files: List[str],
     np_stack: np.ndarray = np.stack([ds.read(masked=True) for ds in datasets], axis=axis)
 
     # Close datasets
-    for d in datasets:
-        d.close()
+    for rio_dataset in datasets:
+        rio_dataset.close()
 
     # If scaling is required, apply it
     if scale is not None:
-        np_stack_mask = (np_stack == input_no_data_value)
+        np_stack_mask = np_stack == input_no_data_value
         np_stack = np_stack / scale
         np_stack[np_stack_mask] = output_no_data_value
 
@@ -381,6 +383,7 @@ def compute_latlon_bbox_from_region(bounds: BoundingBox, crs: str) -> BoundingBo
     x_from = [p[0] for p in [ul_from, ur_from, ll_from, lr_from]]
     y_from = [p[1] for p in [ul_from, ur_from, ll_from, lr_from]]
     transformer = Transformer.from_crs(crs, '+proj=latlong', always_xy=True)
+    # pylint: disable=unpacking-non-sequence
     x_to, y_to = transformer.transform(x_from, y_from)
     return BoundingBox(np.min(x_to), np.min(y_to), np.max(x_to), np.max(y_to))
 
@@ -395,8 +398,7 @@ def extract_bitmask(mask: Union[xr.DataArray, np.ndarray], bit: int = 0) -> np.n
     """
     if isinstance(mask, xr.DataArray):
         return mask.values.astype(int) >> bit & 1
-    else:
-        return mask.astype(int) >> bit & 1
+    return mask.astype(int) >> bit & 1
 
 
 def swath_resample(
@@ -415,25 +417,36 @@ def swath_resample(
     discrete_fill_value: int = 0,
     max_neighbours: int = 8
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], np.ndarray, np.ndarray]:
-    """
-    This function wraps and optimizes pyresample in order to resample
-    swath data (i.e. observations indexed by an array of irregular latitudes and longitudes).
+    """This function wraps and optimizes pyresample in order to resample
+    swath data (i.e. observations indexed by an array of irregular
+    latitudes and longitudes).
 
     :param latitudes: the array of latitudes of shape (in_height, in_width)
     :param longitudes: the array of longitudes of shape (in_height, in_width)
     :param target_crs: the target crs for resampling
-    :param target_bounds: the target bounds for resampling as a rio.coords.BoundingBox object. Note that bounds define the outer edge of edge pixels
+    :param target_bounds: the target bounds for resampling as
+     a rio.coords.BoundingBox object. Note that bounds define the outer edge
+    of edge pixels
     :param target_resolution: the target resolution
     :param sigma: Width of the gausian weighting for the resampling
     :param cutoff_sigma_mult: Sigma multiplier for cutoff distance
-    :param nthreads: Number of threads that will used. Can be higher than available cpus (but threads increase memory consumption, see strip_size parameter)
-    :param discrete_variables: discrete variables to resample with nearest-neighbors, of shape (in_height, in_width, np_discrete). Can be None
-    :param continuous_variables: continuous variables to resample with gaussian weighting, of shape (in_height, in_width, np_discrete)
-    :param strip_size: Size of strip processed by a single thread, in pixels. Total memory is nthreads * memory required to process strip_size
+    :param nthreads: Number of threads that will used. Can be higher
+    than available cpus (but threads increase memory consumption, see
+    strip_size parameter)
+    :param discrete_variables: discrete variables to resample with
+    nearest-neighbors, of shape (in_height, in_width,
+    np_discrete). Can be None
+    :param continuous_variables: continuous variables to resample with
+    gaussian weighting, of shape (in_height, in_width, np_discrete)
+
+    :param strip_size: Size of strip processed by a single thread, in
+    pixels. Total memory is nthreads * memory required to process
+    strip_size
     :param fill_value: Value to use for no-data in output arrays
     :param max_neighbours: Maximum number of neighbors considered
 
-    :return: resampled discrete variables, resampled continuous variables, xcoords, ycoords
+    :return: resampled discrete variables, resampled continuous
+    variables, xcoords, ycoords
     """
     # Compute output number of rows and columns
     nb_cols = int(np.ceil((target_bounds.right - target_bounds.left) / target_resolution))
@@ -442,13 +455,9 @@ def swath_resample(
     # Define swath
     swath_def = geometry.SwathDefinition(lons=longitudes, lats=latitudes)
 
-    #start = time.perf_counter()
-
     # Define target area
     area_def = geometry.AreaDefinition('area', 'area', target_crs, target_crs, nb_cols, nb_rows,
                                        target_bounds)
-    #print(area_def)
-
     # Preprocess grid
     valid_input, valid_output, index_array, distance_array = kd_tree.get_neighbour_info(
         swath_def,
@@ -462,10 +471,6 @@ def swath_resample(
     # Scale distance by sigma, so that they are ready to be passed to np.exp
     scaled_distances = -(distance_array / sigma)**2
 
-    #preprocess_milestone = time.perf_counter()
-    #print(f'{preprocess_milestone-start=}')
-
-    #print(f'{nthreads=}')
     # Start the threads pool
     with ThreadPoolExecutor(max_workers=nthreads) as executor:
 
@@ -473,30 +478,28 @@ def swath_resample(
         strip_size = max(1, int(np.floor(strip_size / nb_cols)))
         nb_strips = int(np.ceil(nb_rows / float(strip_size)))
 
-        #print(f'{strip_size=}')
-        #print(f'{nb_strips=}')
-
-        # Those list will recieve the outputs of assynchronous map operations by the threads pool
+        # Those list will recieve the outputs of assynchronous map
+        # operations by the threads pool
         out_cvs_results = []
         out_dvs_results = []
 
         # Iterate on strips
-        for s in range(nb_strips):
+        for strip in range(nb_strips):
 
             # Compute parameters of current strip
-            current_valid_output = valid_output[s * strip_size *
-                                                nb_cols:min(nb_rows * nb_cols, (s + 1) *
+            current_valid_output = valid_output[strip * strip_size *
+                                                nb_cols:min(nb_rows * nb_cols, (strip + 1) *
                                                             strip_size * nb_cols)]
-            current_index_array = index_array[s * strip_size *
-                                              nb_cols:min(nb_rows * nb_cols, (s + 1) * strip_size *
-                                                          nb_cols), :]
-            current_distance_array = distance_array[s * strip_size *
-                                                    nb_cols:min(nb_rows * nb_cols, (s + 1) *
+            current_index_array = index_array[strip * strip_size *
+                                              nb_cols:min(nb_rows * nb_cols, (strip + 1) *
+                                                          strip_size * nb_cols), :]
+            current_distance_array = distance_array[strip * strip_size *
+                                                    nb_cols:min(nb_rows * nb_cols, (strip + 1) *
                                                                 strip_size * nb_cols), :]
-            current_scaled_distances = scaled_distances[s * strip_size *
-                                                        nb_cols:min(nb_rows * nb_cols, (s + 1) *
+            current_scaled_distances = scaled_distances[strip * strip_size *
+                                                        nb_cols:min(nb_rows * nb_cols, (strip + 1) *
                                                                     strip_size * nb_cols), :]
-            current_nb_rows = min(nb_rows, (s + 1) * strip_size) - s * strip_size
+            current_nb_rows = min(nb_rows, (strip + 1) * strip_size) - strip * strip_size
 
             # Process discrete variables
             if discrete_variables is not None:
@@ -542,15 +545,17 @@ def swath_resample(
                 out_cvs_results.append(out_cv_futures)
 
     if continuous_variables is not None:
-        # This code concatenates resulting variable for each strip, effectively joining all pending calculation
-        out_cvs = [np.stack([c for c in v], axis=-1) for v in out_cvs_results]
+        # This code concatenates resulting variable for each strip,
+        # effectively joining all pending calculation
+        out_cvs = [np.stack(list(v), axis=-1) for v in out_cvs_results]
         # And then stack strips
         out_cv: Optional[np.ndarray] = np.concatenate(out_cvs, axis=0)
     else:
         out_cv = None
     if discrete_variables is not None:
-        # This code concatenates resulting variable for each strip, effectively joining all pending calculation
-        out_dvs = [np.stack([c for c in v], axis=-1) for v in out_dvs_results]
+        # This code concatenates resulting variable for each strip,
+        # effectively joining all pending calculation
+        out_dvs = [np.stack(list(v), axis=-1) for v in out_dvs_results]
         # And then stack strips
         out_dv = np.concatenate(out_dvs, axis=0)
     else:
@@ -561,8 +566,5 @@ def swath_resample(
                           target_bounds[2] - target_resolution / 2, area_def.width)
     ycoords = np.linspace(target_bounds[3] - target_resolution / 2,
                           target_bounds[1] + target_resolution / 2, area_def.height)
-
-    #end = time.perf_counter()
-    #print(f'{end-preprocess_milestone=}')
 
     return out_dv, out_cv, xcoords, ycoords

@@ -12,7 +12,6 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pytest
 import rasterio as rio
-
 from sensorsio import mgrs, sentinel2
 
 
@@ -77,8 +76,9 @@ def test_sentinel2_psf():
     """
     Test the PSF method
     """
-    psf = sentinel2.Sentinel2.PSF(sentinel2.Sentinel2.GROUP_10M + sentinel2.Sentinel2.GROUP_20M,
-                                  half_kernel_width=5)
+    psf = sentinel2.Sentinel2.generate_psf_kernel(sentinel2.Sentinel2.GROUP_10M +
+                                                  sentinel2.Sentinel2.GROUP_20M,
+                                                  half_kernel_width=5)
     assert psf.shape == (10, 11, 11)
 
 
