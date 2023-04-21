@@ -135,7 +135,7 @@ class Master():
                                                            nthreads=nprocs,
                                                            strip_size=strip_size,
                                                            max_neighbours=max_neighbours)
-
+        assert result is not None
         lst = result[:, :, :1]
         emis = result[:, :, 1:6]
         angles = result[:, :, 6:]

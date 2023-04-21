@@ -92,8 +92,8 @@ class Ecostress():
 
         # Read geolocation grids
         with h5py.File(self.geom_file) as geomDS:
-            latitude = np.array(geomDS['Geolocation/latitude'].astype(np.double))
-            longitude = np.array(geomDS['Geolocation/longitude'].astype(np.double))
+            latitude = np.array(geomDS['Geolocation/latitude']).astype(np.double)
+            longitude = np.array(geomDS['Geolocation/longitude']).astype(np.double)
 
             # Handle region
             if region is None:
@@ -124,8 +124,8 @@ class Ecostress():
                 max_longitude = np.max(longitude)
                 transformer = pyproj.Transformer.from_crs('+proj=latlon', crs)
                 (left, bottom, right,
-                 top) = transformer.transform_bounds(min_longitude, min_latitude, max_longitude,
-                                                     max_latitude)
+                 top) = transformer.transform_bounds(float(min_longitude), float(min_latitude),
+                                                     float(max_longitude), float(max_latitude))
                 bounds = rio.coords.BoundingBox(left, bottom, right, top)
 
             # Read angles
@@ -147,7 +147,7 @@ class Ecostress():
         with h5py.File(self.lst_file) as lstDS:
 
             # Read quality control
-            qc = np.array(lstDS['SDS/QC'][region[0]:region[2], region[1]:region[3]].astype(dtype))
+            qc = np.array(lstDS['SDS/QC'][region[0]:region[2], region[1]:region[3]]).astype(dtype)
 
             if read_lst:
                 # Read LST
@@ -190,7 +190,7 @@ class Ecostress():
         if self.cloud_file:
             with h5py.File(self.cloud_file) as cloudDS:
                 cld = np.array(cloudDS['SDS/CloudMask'][region[0]:region[2],
-                                                        region[1]:region[3]].astype(dtype))
+                                                        region[1]:region[3]]).astype(dtype)
                 # CAUTION: we can resample cloud mask with other
                 # variables as long as we do nearest neighbor
                 # interpolation
@@ -253,6 +253,8 @@ class Ecostress():
         lst_end = angles_end + (2 if read_lst else 0)
         emis_end = lst_end + (10 if read_emissivities else 0)
 
+        assert result is not None
+        assert result_discretes is not None
         angles: Optional[np.ndarray] = result[:, :, :angles_end] if read_angles else None
         lst_out: Optional[np.ndarray] = result[:, :, angles_end:lst_end] if read_lst else None
         emissivities: Optional[np.ndarray] = result[:, :,
