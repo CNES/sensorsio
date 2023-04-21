@@ -6,7 +6,6 @@ This module contains utilities function
 """
 
 import math
-import warnings
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Iterable, List, Optional, Tuple, Union
@@ -21,7 +20,6 @@ from rasterio.coords import BoundingBox
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 from rasterio.warp import transform_bounds
-from rasterio.windows import Window
 
 
 def rgb_render(

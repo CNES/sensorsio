@@ -5,7 +5,7 @@
 import glob
 import os
 from enum import Enum
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np

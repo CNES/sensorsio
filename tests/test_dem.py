@@ -10,6 +10,7 @@ import tempfile
 import pytest
 import rasterio as rio
 from pyproj import CRS
+
 from sensorsio import mgrs, srtm
 
 

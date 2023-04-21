@@ -8,7 +8,7 @@ import warnings
 import xml.etree.ElementTree as ET
 from collections import namedtuple
 from enum import Enum
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
