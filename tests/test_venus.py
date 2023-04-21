@@ -73,7 +73,6 @@ class ReadAsNumpyParams:
     scale: float = 1000
     crs: Optional[str] = None
     resolution: float = 10
-    region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None
     no_data_value: float = np.nan
     bounds: rio.coords.BoundingBox = None
     algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic
@@ -83,31 +82,17 @@ class ReadAsNumpyParams:
         """
         return expected shape
         """
-        if self.region is not None:
-            if isinstance(self.region, rio.coords.BoundingBox):
-                return (int((self.region[3] - self.region[1]) / self.resolution),
-                        int((self.region[2] - self.region[0]) / self.resolution))
-            return (int((self.region[3] - self.region[1])), int((self.region[2] - self.region[0])))
         if self.bounds is not None:
             return (int((self.bounds[3] - self.bounds[1]) / self.resolution),
                     int((self.bounds[2] - self.bounds[0]) / self.resolution))
 
-        return (int(10980 * 10 / self.resolution), int(10980 * 10 / self.resolution))
+        raise NotImplementedError
 
 
 @pytest.mark.requires_test_data
 @pytest.mark.parametrize(
     "parameters",
     [
-        # Use region to restrict source reading with bounding box
-        ReadAsNumpyParams(region=rio.coords.BoundingBox(
-            left=354650., bottom=4828620., right=355650., top=4829620.)),
-        # Use region to restrict source reading with bounding box
-        ReadAsNumpyParams(region=rio.coords.BoundingBox(
-            left=354650., bottom=4828620., right=355650., top=4829620.),
-                          mask_res=venus.Venus.MaskRes.XS),
-        # Use region to restrict source read with pixel coords
-        ReadAsNumpyParams(region=[0, 0, 100, 200]),
         # Use bounds to set output region
         ReadAsNumpyParams(bounds=rio.coords.BoundingBox(
             left=354650., bottom=4828620., right=355650., top=4829620.)),
@@ -126,7 +111,8 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
     bands_arr, mask_arr, xcoords, ycoords, crs = vns_dataset.read_as_numpy(**parameters.__dict__)
 
     assert bands_arr.shape == (len(parameters.bands), *parameters.expected_shape())
-    assert mask_arr and mask_arr.shape == (len(parameters.masks), *parameters.expected_shape())
+    assert mask_arr is not None and mask_arr.shape == (len(
+        parameters.masks), *parameters.expected_shape())
     assert (~np.isnan(bands_arr)).sum() > 0
 
     assert ycoords.shape == (parameters.expected_shape()[0], )

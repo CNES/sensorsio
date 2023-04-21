@@ -96,7 +96,6 @@ class ReadAsNumpyParams:
     scale: float = 10000
     crs: Optional[str] = None
     resolution: float = 10
-    region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None
     no_data_value: float = np.nan
     bounds: rio.coords.BoundingBox = None
     algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic
@@ -106,11 +105,6 @@ class ReadAsNumpyParams:
         """
         return expected shape
         """
-        if self.region is not None:
-            if isinstance(self.region, rio.coords.BoundingBox):
-                return (int((self.region[3] - self.region[1]) / self.resolution),
-                        int((self.region[2] - self.region[0]) / self.resolution))
-            return (int((self.region[3] - self.region[1])), int((self.region[2] - self.region[0])))
         if self.bounds is not None:
             return (int((self.bounds[3] - self.bounds[1]) / self.resolution),
                     int((self.bounds[2] - self.bounds[0]) / self.resolution))
@@ -122,14 +116,6 @@ class ReadAsNumpyParams:
 @pytest.mark.parametrize(
     "parameters",
     [
-        # Use region to restrict source reading with bounding box
-        ReadAsNumpyParams(region=rio.coords.BoundingBox(300000., 4790220., 301000, 4792220)),
-        # Use region to restrict source reading with bounding box
-        ReadAsNumpyParams(region=rio.coords.BoundingBox(300000., 4790220., 301000, 4792220),
-                          res=sentinel2.Sentinel2.R2),
-        # Use region to restrict source read with pixel coords
-        ReadAsNumpyParams(region=[0, 0, 100, 200]),
-        # Use bounds to set output region
         ReadAsNumpyParams(bounds=rio.coords.BoundingBox(300000., 4790220., 301000, 4792220)),
         # Use bounds to set output region, with 20m bands
         ReadAsNumpyParams(bands=sentinel2.Sentinel2.GROUP_20M,

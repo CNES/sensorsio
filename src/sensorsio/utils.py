@@ -260,12 +260,15 @@ def bb_common(bounds: List[BoundingBox],
 
     returns: A tuple of box, crs
     """
-    assert (len(bounds) == len(src_crs))
-    out_target_crs = target_crs
+    assert (len(bounds) == len(src_crs) and len(bounds) > 0)
+
+    if target_crs is not None:
+        out_target_crs = target_crs
+    else:
+        out_target_crs = src_crs[0]
+
     boxes = []
     for box, crs in zip(bounds, src_crs):
-        if out_target_crs is None:
-            out_target_crs = crs
         crs_box = bb_transform(crs, out_target_crs, box)
         boxes.append(crs_box)
 
@@ -281,7 +284,6 @@ def read_as_numpy(img_files: List[str],
                   crs: Optional[str] = None,
                   resolution: float = 10,
                   offsets: Optional[Tuple[float, float]] = None,
-                  region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
                   input_no_data_value: Optional[float] = None,
                   output_no_data_value: float = np.nan,
                   bounds: Optional[rio.coords.BoundingBox] = None,
@@ -291,16 +293,21 @@ def read_as_numpy(img_files: List[str],
                   scale: Optional[float] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, str]:
     """
     :param vrts: A list of WarpedVRT objects to stack
-    :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
     :param dtype: dtype of the output Tensor
     :param separate: If True, each WarpedVRT is considered to offer a single band
     TODO
     """
+    assert len(img_files) > 0
+
     # Check if we need resampling or not
     need_warped_vrt = (offsets is not None)
     # If we change image bounds
     nb_bands = None
     out_crs = crs
+
+    if out_crs is None:
+        out_crs = rio.open(img_files[0]).crs
+
     for f in img_files:
         with rio.open(f) as ds:
             if nb_bands is None:
@@ -314,8 +321,6 @@ def read_as_numpy(img_files: List[str],
             else:
                 out_bounds = rio.coords.BoundingBox(*ds.bounds)
             # If we change projection
-            if out_crs is None:
-                out_crs = ds.crs
             if out_crs != ds.crs:
                 need_warped_vrt = True
             if ds.transform[0] != resolution:
@@ -342,29 +347,7 @@ def read_as_numpy(img_files: List[str],
     if separate:
         axis = 1
 
-    # Read full img if region is None
-    if region is not None and not need_warped_vrt:
-        # Convert region to window
-        if isinstance(region, BoundingBox):
-            windows = []
-            for ds in datasets:
-                current_window = Window(
-                    (region[0] - ds.bounds[0]) / ds.res[0], (region[1] - ds.bounds[1]) / ds.res[1],
-                    (region[2] - region[0]) / ds.res[0], (region[3] - region[1]) / ds.res[1])
-                windows.append(current_window)
-        else:
-            windows = [
-                Window(region[0], region[1], region[2] - region[0], region[3] - region[1])
-                for ds in datasets
-            ]
-
-        np_stack = np.stack([ds.read(window=w, masked=True) for (ds, w) in zip(datasets, windows)],
-                            axis=axis)
-    else:
-        warnings.warn(
-            'region parameter is set but read_as_numpy requires to use WarpedVRT. The region parameter will be ignored'
-        )
-        np_stack = np.stack([ds.read(masked=True) for ds in datasets], axis=axis)
+    np_stack: np.ndarray = np.stack([ds.read(masked=True) for ds in datasets], axis=axis)
 
     # Close datasets
     for d in datasets:
@@ -379,11 +362,11 @@ def read_as_numpy(img_files: List[str],
     # Convert to float before casting to final dtype
     np_stack = np_stack.astype(dtype)
 
-    xcoords = np.linspace(out_bounds.left + 0.5 * resolution, out_bounds.right - 0.5 * resolution,
-                          np_stack.shape[3])
+    xcoords: np.ndarray = np.linspace(out_bounds.left + 0.5 * resolution,
+                                      out_bounds.right - 0.5 * resolution, np_stack.shape[3])
 
-    ycoords = np.linspace(out_bounds.top - 0.5 * resolution, out_bounds.bottom + 0.5 * resolution,
-                          np_stack.shape[2])
+    ycoords: np.ndarray = np.linspace(out_bounds.top - 0.5 * resolution,
+                                      out_bounds.bottom + 0.5 * resolution, np_stack.shape[2])
 
     return np_stack, xcoords, ycoords, out_crs
 

@@ -172,7 +172,6 @@ class Landsat:
         masks: List[Mask] = ALL_MASKS,
         crs: Optional[str] = None,
         resolution: float = 30,
-        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
@@ -186,7 +185,6 @@ class Landsat:
         :param bands: The list of bands to read
         :param crs: Projection in which to read the image (will use WarpedVRT)
         :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
-        :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
         :param no_data_value: How no-data will appear in output ndarray
         :param bounds: New bounds for datasets. If different from image bands, will use a WarpedVRT
         :param algorithm: The resampling algorithm to be used if WarpedVRT
@@ -207,7 +205,6 @@ class Landsat:
                 img_files,
                 crs=crs,
                 resolution=resolution,
-                region=region,
                 output_no_data_value=no_data_value,
                 bounds=bounds,
                 algorithm=algorithm,
@@ -233,7 +230,6 @@ class Landsat:
                 img_files,
                 crs=crs,
                 resolution=resolution,
-                region=region,
                 output_no_data_value=no_data_value,
                 bounds=bounds,
                 algorithm=rio.enums.Resampling.nearest,
@@ -250,7 +246,6 @@ class Landsat:
         masks: List[Mask] = ALL_MASKS,
         crs: Optional[str] = None,
         resolution: float = 30,
-        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
@@ -271,7 +266,7 @@ class Landsat:
         :return:
         """
         np_arr, np_arr_msk, xcoords, ycoords, crs = self.read_as_numpy(
-            bands, masks, crs, resolution, region, no_data_value, bounds, algorithm, dtype)
+            bands, masks, crs, resolution, no_data_value, bounds, algorithm, dtype)
 
         vars = {}
         if np_arr is not None:

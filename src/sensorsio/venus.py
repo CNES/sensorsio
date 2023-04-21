@@ -224,7 +224,6 @@ class Venus:
         scale: float = 1000,
         crs: Optional[str] = None,
         resolution: float = 10,
-        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
@@ -239,7 +238,6 @@ class Venus:
         :param scale: Scale factor applied to reflectances (r_s = r / scale). No scaling if set to None
         :param crs: Projection in which to read the image (will use WarpedVRT)
         :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
-        :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
         :param no_data_value: How no-data will appear in output ndarray
         :param bounds: New bounds for datasets. If different from image bands, will use a WarpedVRT
         :param algorithm: The resampling algorithm to be used if WarpedVRT
@@ -255,7 +253,6 @@ class Venus:
                                                             crs=crs,
                                                             resolution=resolution,
                                                             offsets=self.offsets,
-                                                            region=region,
                                                             output_no_data_value=no_data_value,
                                                             input_no_data_value=-1000,
                                                             bounds=bounds,
@@ -275,7 +272,6 @@ class Venus:
                                                       crs=crs,
                                                       resolution=resolution,
                                                       offsets=self.offsets,
-                                                      region=region,
                                                       output_no_data_value=no_data_value,
                                                       input_no_data_value=-1000,
                                                       bounds=bounds,
@@ -298,7 +294,6 @@ class Venus:
         scale: float = 1000,
         crs: Optional[str] = None,
         resolution: float = 10,
-        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
@@ -314,7 +309,6 @@ class Venus:
         :param scale: Scale factor applied to reflectances (r_s = r / scale). No scaling if set to None
         :param crs: Projection in which to read the image (will use WarpedVRT)
         :param resolution: Resolution of data. If different from the resolution of selected bands, will use WarpedVRT
-        :param region: The region to read as a BoundingBox object or a list of pixel coords (xmin, ymin, xmax, ymax)
         :param no_data_value: How no-data will appear in output ndarray
         :param bounds: New bounds for datasets. If different from image bands, will use a WarpedVRT
         :param algorithm: The resampling algorithm to be used if WarpedVRT
@@ -322,8 +316,8 @@ class Venus:
         :return: The image pixels as a np.ndarray of shape [bands, width, height]
         """
         np_arr, np_arr_msk, xcoords, ycoords, crs = self.read_as_numpy(
-            bands, band_type, masks, mask_res, scale, crs, resolution, region, no_data_value,
-            bounds, algorithm, dtype)
+            bands, band_type, masks, mask_res, scale, crs, resolution, no_data_value, bounds,
+            algorithm, dtype)
 
         vars = {}
         for i in range(len(bands)):

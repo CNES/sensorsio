@@ -52,7 +52,6 @@ class ReadAsNumpyParams:
     masks: List[landsat.Landsat.Mask] = field(default_factory=lambda: landsat.Landsat.ALL_MASKS)
     crs: Optional[str] = None
     resolution: float = 30
-    region: Union[Tuple[int, int, int, int], rio.coords.BoundingBox] = None
     no_data_value: float = np.nan
     bounds: rio.coords.BoundingBox = None
     algorithm: rio.enums.Resampling = rio.enums.Resampling.cubic
@@ -62,14 +61,9 @@ class ReadAsNumpyParams:
         """
         return expected shape
         """
-        if self.region is not None:
-            if isinstance(self.region, rio.coords.BoundingBox):
-                return (int((self.region[3] - self.region[1]) / self.resolution),
-                        int((self.region[2] - self.region[0]) / self.resolution))
-            return (int((self.region[3] - self.region[1])), int((self.region[2] - self.region[0])))
         if self.bounds is not None:
-            return (int(np.ceil((self.bounds[3] - self.bounds[1]) / self.resolution)),
-                    int(np.ceil((self.bounds[2] - self.bounds[0]) / self.resolution)))
+            return (int(np.floor((self.bounds[3] - self.bounds[1]) / self.resolution)),
+                    int(np.floor((self.bounds[2] - self.bounds[0]) / self.resolution)))
 
         raise NotImplementedError
 
@@ -78,12 +72,6 @@ class ReadAsNumpyParams:
 @pytest.mark.parametrize(
     "parameters",
     [
-        # # Use region to restrict source reading with bounding box
-        ReadAsNumpyParams(
-            region=rio.coords.BoundingBox(left=534000, bottom=1451500., right=534200, top=1451700.)
-        ),
-        # Use region to restrict source read with pixel coords
-        ReadAsNumpyParams(region=[3500, 3500, 3600, 3700]),
         # Use bounds to set output region
         ReadAsNumpyParams(
             bounds=rio.coords.BoundingBox(left=534000, bottom=1451500., right=534200, top=1451700.)

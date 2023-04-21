@@ -417,7 +417,6 @@ class Sentinel2:
         scale: float = 10000,
         crs: Optional[str] = None,
         resolution: float = 10,
-        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
@@ -452,7 +451,6 @@ class Sentinel2:
                 crs=crs,
                 resolution=resolution,
                 offsets=self.offsets,
-                region=region,
                 output_no_data_value=no_data_value,
                 input_no_data_value=-10000,
                 bounds=bounds,
@@ -472,7 +470,6 @@ class Sentinel2:
                                                       crs=crs,
                                                       resolution=resolution,
                                                       offsets=self.offsets,
-                                                      region=region,
                                                       output_no_data_value=no_data_value,
                                                       input_no_data_value=-10000,
                                                       bounds=bounds,
@@ -491,7 +488,6 @@ class Sentinel2:
                                                       crs=crs,
                                                       resolution=resolution,
                                                       offsets=self.offsets,
-                                                      region=region,
                                                       output_no_data_value=no_data_value,
                                                       input_no_data_value=-10000,
                                                       bounds=bounds,
@@ -516,7 +512,6 @@ class Sentinel2:
         scale: float = 10000,
         crs: Optional[str] = None,
         resolution: float = 10,
-        region: Optional[Union[Tuple[int, int, int, int], rio.coords.BoundingBox]] = None,
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
@@ -540,8 +535,8 @@ class Sentinel2:
         :return: The image pixels as a np.ndarray of shape [bands, width, height]
         """
         np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs = self.read_as_numpy(
-            bands, band_type, masks, readAtmos, res, scale, crs, resolution, region, no_data_value,
-            bounds, algorithm, dtype)
+            bands, band_type, masks, readAtmos, res, scale, crs, resolution, no_data_value, bounds,
+            algorithm, dtype)
 
         vars = {}
         for i in range(len(bands)):

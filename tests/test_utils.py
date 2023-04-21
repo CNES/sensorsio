@@ -307,24 +307,6 @@ def test_read_as_numpy():
 
             assert crs == cfg3.crs
 
-            # use region as BoundingBox
-            out_stack, xcoords, ycoords, crs = utils.read_as_numpy(
-                [img1_path, img2_path],
-                region=rio.coords.BoundingBox(cfg1.origin[0], cfg1.origin[1] - 50,
-                                              cfg1.origin[0] + 50, cfg1.origin[1]))
-            assert out_stack.shape == (2, 3, 5, 5)
-            assert xcoords.shape == (5, )
-            assert ycoords.shape == (5, )
-            assert crs == cfg1.crs
-
-            # use region as Tuple[int,int,int,int]
-            out_stack, xcoords, ycoords, crs = utils.read_as_numpy([img1_path, img2_path],
-                                                                   region=(0, 0, 5, 5))
-            assert out_stack.shape == (2, 3, 5, 5)
-            assert xcoords.shape == (5, )
-            assert ycoords.shape == (5, )
-            assert crs == cfg1.crs
-
         # Test that using files with different number of bands raises ValueError
         with tempfile.NamedTemporaryFile(suffix='.tif') as temporary_file4:
             cfg4 = ImageConfig(nb_bands=1)
