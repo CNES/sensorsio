@@ -386,7 +386,7 @@ class Sentinel2:
         Return path to root xml file
         """
         xml_path = storage.agnostic_regex(self.product_dir,
-                                          "/*MTD_ALL.xml",
+                                          "*MTD_ALL.xml",
                                           s3_context=self.s3_context,
                                           use_gdal_adressing=False)
         # Raise
@@ -424,7 +424,7 @@ class Sentinel2:
         :return: The path to the band file
         """
         mask_path = storage.agnostic_regex(self.product_dir,
-                                           f'MASKS/*{mask.value}_{resolution.value}.tif',
+                                           f'*MASKS/*{mask.value}_{resolution.value}.tif',
                                            s3_context=self.s3_context,
                                            use_gdal_adressing=True)
         # Raise
