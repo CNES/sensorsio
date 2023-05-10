@@ -92,7 +92,7 @@ class ReadAsNumpyParams:
     band_type: sentinel2.Sentinel2.BandType = sentinel2.Sentinel2.FRE
     masks: List[sentinel2.Sentinel2.Mask] = field(
         default_factory=lambda: sentinel2.Sentinel2.ALL_MASKS)
-    readAtmos: bool = False
+    read_atmos: bool = False
     res: sentinel2.Sentinel2.Res = sentinel2.Sentinel2.R1
     scale: float = 10000
     crs: Optional[str] = None
@@ -143,7 +143,7 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
         parameters.masks), *parameters.expected_shape())
     assert (~np.isnan(bands_arr)).sum() > 0
 
-    if parameters.readAtmos:
+    if parameters.read_atmos:
         assert atm_arr is not None and atm_arr.shape == (2, *parameters.expected_shape())
     else:
         assert atm_arr is None
@@ -170,7 +170,7 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
         assert band.value in s2_xr.variables
         assert s2_xr[band.value].shape == (1, *parameters.expected_shape())
 
-    if parameters.readAtmos:
+    if parameters.read_atmos:
         for atm_band in ['WCV', 'AOT']:
             assert atm_band in s2_xr.variables
             assert s2_xr[atm_band].shape == (1, parameters.expected_shape())

@@ -424,7 +424,7 @@ class Sentinel2:
         :return: The path to the band file
         """
         mask_path = storage.agnostic_regex(self.product_dir,
-                                           f'*{mask.value}_{resolution.value}.tif',
+                                           f'MASKS/*{mask.value}_{resolution.value}.tif',
                                            s3_context=self.s3_context,
                                            use_gdal_adressing=True)
         # Raise
