@@ -60,10 +60,10 @@ class Venus:
         self.satellite = Venus.Satellite(self.product_name[0:5])
 
         # Get site
-        self.site = self.product_name[33:41]
+        self.site = self.product_name.split('_')[-3]
 
         # Get acquisition date
-        self.date = parse_date(self.product_name[9:17])
+        self.date = parse_date(self.product_name.split('_')[1][0:8])
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
 

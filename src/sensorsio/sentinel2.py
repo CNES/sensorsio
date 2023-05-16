@@ -521,7 +521,6 @@ class Sentinel2:
 
             # Skip first dimension
             np_arr = np_arr[0, ...]
-
         # Read masks if needed
         np_arr_msk = None
         if len(masks) != 0:
@@ -539,7 +538,6 @@ class Sentinel2:
                                                       scale=None)
             # Skip first dimension
             np_arr_msk = np_arr_msk[0, ...]
-
         # Read atmosphere band
         np_arr_atm = None
         if read_atmos:
