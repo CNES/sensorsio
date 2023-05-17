@@ -51,7 +51,6 @@ def agnostic_regex(product_dir: str,
                 return matches
         # Plain case
         matches = glob.glob(f"{product_dir}/{pattern}")
-        print(f"plain case: {product_dir}/{pattern}")
         if use_gdal_adressing:
             return matches
         return [m[len(product_dir) + 1:] for m in matches]

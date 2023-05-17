@@ -4,6 +4,7 @@
 
 import glob
 import os
+import xml.etree.ElementTree as ET
 from enum import Enum
 from typing import List, Optional, Tuple
 
@@ -13,7 +14,7 @@ import rasterio as rio
 import xarray as xr
 from dateutil.parser import parse as parse_date
 
-from sensorsio import utils
+from sensorsio import storage, utils
 
 """
 This module contains Venus (L2A MAJA) related functions
@@ -33,13 +34,24 @@ class Venus:
     """
     Class for Venus L2A (MAJA format) product reading
     """
-    def __init__(self, product_dir, offsets: Optional[Tuple[float, float]] = None):
+    def __init__(self,
+                 product_dir,
+                 offsets: Optional[Tuple[float, float]] = None,
+                 parse_xml: bool = True,
+                 s3_context: Optional[storage.S3Context] = None):
         """
         Constructor
         """
+        # Store s3 context
+        self.s3_context = s3_context
+
         # Store product DIR
         self.product_dir = os.path.normpath(product_dir)
         self.product_name = os.path.basename(self.product_dir)
+
+        # Strip zip extension if exists
+        if self.product_name.endswith(".zip") or self.product_name.endswith(".ZIP"):
+            self.product_name = self.product_name[:-4]
 
         # Store offsets
         self.offsets = offsets
@@ -48,10 +60,10 @@ class Venus:
         self.satellite = Venus.Satellite(self.product_name[0:5])
 
         # Get site
-        self.site = self.product_name[33:41]
+        self.site = self.product_name.split('_')[-3]
 
         # Get acquisition date
-        self.date = parse_date(self.product_name[9:17])
+        self.date = parse_date(self.product_name.split('_')[1][0:8])
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
 
@@ -61,7 +73,11 @@ class Venus:
             # Get crs
             self.crs = ds.crs
 
-        # TODO: decode cloud cover as well
+        # Look for xml file
+        self.xml_file = self.build_xml_path()
+        # Parse xml file if requested
+        if parse_xml:
+            self.parse_xml()
 
     def __repr__(self):
         return f'{self.satellite.value}, {self.date}, {self.site}'
@@ -172,11 +188,27 @@ class Venus:
         return np.stack([(utils.generate_psf_kernel(resolution, Venus.RES[b], Venus.MTF[b],
                                                     half_kernel_width)) for b in bands])
 
+    def parse_xml(self):
+        """
+        Parse metadata file
+        """
+        with storage.agnostic_open(self.product_dir, self.xml_file, self.s3_context) as xml_file:
+            tree = ET.parse(xml_file)
+            root = tree.getroot()
+            # Parse cloud cover
+            quality_node = root.find(".//*[@name='CloudPercent']")
+            if quality_node is not None:
+                self.cloud_cover = int(quality_node.text)
+
     def build_xml_path(self) -> str:
         """
         Return path to root xml file
         """
-        p = glob.glob(f"{self.product_dir}/*MTD_ALL.xml")
+        p = storage.agnostic_regex(self.product_dir,
+                                   "*MTD_ALL.xml",
+                                   s3_context=self.s3_context,
+                                   use_gdal_adressing=False)
+
         # Raise
         if len(p) == 0:
             raise FileNotFoundError(
@@ -191,7 +223,10 @@ class Venus:
 
         :return: The path to the band file
         """
-        p = glob.glob(f"{self.product_dir}/*{band_type.value}_{band.value}.tif")
+        p = storage.agnostic_regex(self.product_dir,
+                                   f'*{band_type.value}_{band.value}.tif',
+                                   s3_context=self.s3_context,
+                                   use_gdal_adressing=True)
         # Raise
         if len(p) == 0:
             raise FileNotFoundError(
@@ -207,7 +242,11 @@ class Venus:
 
         :return: The path to the band file
         """
-        p = glob.glob(f"{self.product_dir}/MASKS/*{mask.value}_{resolution.value}.tif")
+        p = storage.agnostic_regex(self.product_dir,
+                                   f'*MASKS/*{mask.value}_{resolution.value}.tif',
+                                   s3_context=self.s3_context,
+                                   use_gdal_adressing=True)
+
         # Raise
         if len(p) == 0:
             raise FileNotFoundError(
