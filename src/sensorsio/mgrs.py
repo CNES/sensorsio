@@ -18,9 +18,8 @@ from shapely.geometry import Polygon  # type: ignore
 def get_polygon_mgrs_tile(tile: str) -> Polygon:
     """ Get the shapely.Polygon corresponding to a MGRS tile"""
     assert tile[0] != 'T'
-    with fiona.open(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         'data/sentinel2/mgrs_tiles.gpkg')) as f:
+    with fiona.open('/vsizip/' + os.path.join(os.path.dirname(os.path.abspath(
+            __file__)), 'data/sentinel2/mgrs_tiles.gpkg.zip', 'mgrs_tiles.gpkg')) as f:
         tiles = list(filter(lambda t: t['properties']['Name'] == tile, f))
         return Polygon(tiles[0].geometry['coordinates'][0])
 

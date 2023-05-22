@@ -48,8 +48,8 @@ def find_tile_orbit_pairs(bounds: rio.coords.BoundingBox, crs='epsg:4326'):
     # Convert bounds to polygon
     aoi = geometry.Polygon([[wgs84_bounds[0], wgs84_bounds[1]], [wgs84_bounds[0], wgs84_bounds[3]],
                             [wgs84_bounds[2], wgs84_bounds[3]], [wgs84_bounds[2], wgs84_bounds[1]]])
-    mgrs_df = gpd.read_file(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/mgrs_tiles.gpkg'))
+    mgrs_df = gpd.read_file('/vsizip/' + os.path.join(os.path.dirname(os.path.abspath(
+        __file__)), 'data/sentinel2/mgrs_tiles.gpkg.zip', 'mgrs_tiles.gpkg'))
     orbits_df = gpd.read_file(
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/orbits.gpkg'))
     intersections = []
