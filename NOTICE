@@ -1,0 +1,14 @@
+Sensorsio Copyright (c) 2021 Centre National d'Etudes Spatiales (CNES)
+/ Université Paul Sabatier (UT3)
+
+This software is distributed under the Apache Software License (ASL)
+v2.0 (see LICENSE file or http://www.apache.org/licenses/LICENSE-2.0
+for details) except for the following files:
+
+src/sensorsio/irregulargrid.py
+src/sensorsio/master.py
+src/sensorsio/ecostress.py
+
+Which are distributed under the Lesser GNU LESSER GENERAL PUBLIC
+LICENSE, Version 3 (see https://www.gnu.org/licenses/lgpl-3.0.txt) in
+order to comply with their dependency to the pyresample library.
