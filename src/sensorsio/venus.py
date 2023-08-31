@@ -1,8 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 
-import glob
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import xml.etree.ElementTree as ET
 from enum import Enum
@@ -14,7 +25,7 @@ import rasterio as rio
 import xarray as xr
 from dateutil.parser import parse as parse_date
 
-from sensorsio import storage, utils
+from sensorsio import regulargrid, storage, utils
 
 """
 This module contains Venus (L2A MAJA) related functions
@@ -288,17 +299,18 @@ class Venus:
                  the crs as a string
         """
         img_files = [self.build_band_path(b, band_type) for b in bands]
-        np_arr, xcoords, ycoords, crs = utils.read_as_numpy(img_files,
-                                                            crs=crs,
-                                                            resolution=resolution,
-                                                            offsets=self.offsets,
-                                                            output_no_data_value=no_data_value,
-                                                            input_no_data_value=-1000,
-                                                            bounds=bounds,
-                                                            algorithm=algorithm,
-                                                            separate=True,
-                                                            dtype=dtype,
-                                                            scale=scale)
+        np_arr, xcoords, ycoords, crs = regulargrid.read_as_numpy(
+            img_files,
+            crs=crs,
+            resolution=resolution,
+            offsets=self.offsets,
+            output_no_data_value=no_data_value,
+            input_no_data_value=-1000,
+            bounds=bounds,
+            algorithm=algorithm,
+            separate=True,
+            dtype=dtype,
+            scale=scale)
 
         # Skip first dimension
         np_arr = np_arr[0, ...]
@@ -307,17 +319,17 @@ class Venus:
         np_arr_msk = None
         if len(masks) != 0:
             mask_files = [self.build_mask_path(m, mask_res) for m in masks]
-            np_arr_msk, _, _, _ = utils.read_as_numpy(mask_files,
-                                                      crs=crs,
-                                                      resolution=resolution,
-                                                      offsets=self.offsets,
-                                                      output_no_data_value=no_data_value,
-                                                      input_no_data_value=-1000,
-                                                      bounds=bounds,
-                                                      algorithm=rio.enums.Resampling.nearest,
-                                                      separate=True,
-                                                      dtype=np.uint8,
-                                                      scale=None)
+            np_arr_msk, _, _, _ = regulargrid.read_as_numpy(mask_files,
+                                                            crs=crs,
+                                                            resolution=resolution,
+                                                            offsets=self.offsets,
+                                                            output_no_data_value=no_data_value,
+                                                            input_no_data_value=-1000,
+                                                            bounds=bounds,
+                                                            algorithm=rio.enums.Resampling.nearest,
+                                                            separate=True,
+                                                            dtype=np.uint8,
+                                                            scale=None)
             # Skip first dimension
             np_arr_msk = np_arr_msk[0, ...]
 

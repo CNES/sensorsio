@@ -1,6 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """ Modeling and access tools for WorldClim 2.0 data """
 
 from enum import Enum
@@ -11,7 +23,7 @@ import rasterio as rio
 import xarray as xr
 from rasterio.coords import BoundingBox
 
-from sensorsio import utils
+from sensorsio import regulargrid
 
 
 class WorldClimQuantity(Enum):
@@ -133,14 +145,15 @@ class WorldClimData:
         if crs is None:
             crs = self.__crs
 
-        np_arr, xcoords, ycoords, crs = utils.read_as_numpy(wc_files,
-                                                            crs=crs,
-                                                            resolution=resolution,
-                                                            bounds=bounds,
-                                                            output_no_data_value=no_data_value,
-                                                            algorithm=algorithm,
-                                                            separate=True,
-                                                            dtype=np.dtype("float32"))
+        np_arr, xcoords, ycoords, crs = regulargrid.read_as_numpy(
+            wc_files,
+            crs=crs,
+            resolution=resolution,
+            bounds=bounds,
+            output_no_data_value=no_data_value,
+            algorithm=algorithm,
+            separate=True,
+            dtype=np.dtype("float32"))
 
         # skip first dimension
         np_arr = np_arr[0, ...]

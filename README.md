@@ -51,6 +51,7 @@ s2_ds = sentinel2.Sentinel2(s2)
 phr_ds = pleiades.Pleiades(phr_xs)
 # Find common grid
 box, crs = utils.bb_common([s2_ds.bounds, phr_ds.bounds],[s2_ds.crs, phr_ds.crs],snap=10)
+
 # Warp Sentinel2 on this grid:
 s2_arr, _, _, _, _ = s2_ds.read_as_numpy(sentinel2.Sentinel2.GROUP_10M,
                                          resolution=10,

@@ -1,18 +1,28 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales
+# Copyright: (c) 2021 CESBIO / Centre National d'Etudes Spatiales / Université Paul Sabatier (UT3)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
 Driver for Sentinel2 L2A MAJA products
 """
 
-import glob
 import os
 import warnings
 import xml.etree.ElementTree as ET
 from collections import namedtuple
 from enum import Enum
 from typing import List, Optional, Tuple
-from zipfile import ZipFile
 
 import geopandas as gpd
 import numpy as np
@@ -24,7 +34,7 @@ from scipy import ndimage  # type: ignore
 from shapely import geometry  # type: ignore
 from sklearn.linear_model import LinearRegression  # type: ignore
 
-from sensorsio import storage, utils
+from sensorsio import regulargrid, storage, utils
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module='geopandas')
 
@@ -506,7 +516,7 @@ class Sentinel2:
 
         if len(bands):
             img_files = [self.build_band_path(b, band_type) for b in bands]
-            np_arr, xcoords, ycoords, out_crs = utils.read_as_numpy(
+            np_arr, xcoords, ycoords, out_crs = regulargrid.read_as_numpy(
                 img_files,
                 crs=crs,
                 resolution=resolution,
@@ -525,34 +535,34 @@ class Sentinel2:
         np_arr_msk = None
         if len(masks) != 0:
             mask_files = [self.build_mask_path(m, res) for m in masks]
-            np_arr_msk, _, _, _ = utils.read_as_numpy(mask_files,
-                                                      crs=crs,
-                                                      resolution=resolution,
-                                                      offsets=self.offsets,
-                                                      output_no_data_value=no_data_value,
-                                                      input_no_data_value=-10000,
-                                                      bounds=bounds,
-                                                      algorithm=rio.enums.Resampling.nearest,
-                                                      separate=True,
-                                                      dtype=np.uint8,
-                                                      scale=None)
+            np_arr_msk, _, _, _ = regulargrid.read_as_numpy(mask_files,
+                                                            crs=crs,
+                                                            resolution=resolution,
+                                                            offsets=self.offsets,
+                                                            output_no_data_value=no_data_value,
+                                                            input_no_data_value=-10000,
+                                                            bounds=bounds,
+                                                            algorithm=rio.enums.Resampling.nearest,
+                                                            separate=True,
+                                                            dtype=np.uint8,
+                                                            scale=None)
             # Skip first dimension
             np_arr_msk = np_arr_msk[0, ...]
         # Read atmosphere band
         np_arr_atm = None
         if read_atmos:
             atmos_file = [self.build_atmos_path(res)]
-            np_arr_atm, _, _, _ = utils.read_as_numpy(atmos_file,
-                                                      crs=crs,
-                                                      resolution=resolution,
-                                                      offsets=self.offsets,
-                                                      output_no_data_value=no_data_value,
-                                                      input_no_data_value=-10000,
-                                                      bounds=bounds,
-                                                      algorithm=algorithm,
-                                                      separate=True,
-                                                      dtype=np.dtype('float32'),
-                                                      scale=None)
+            np_arr_atm, _, _, _ = regulargrid.read_as_numpy(atmos_file,
+                                                            crs=crs,
+                                                            resolution=resolution,
+                                                            offsets=self.offsets,
+                                                            output_no_data_value=no_data_value,
+                                                            input_no_data_value=-10000,
+                                                            bounds=bounds,
+                                                            algorithm=algorithm,
+                                                            separate=True,
+                                                            dtype=np.dtype('float32'),
+                                                            scale=None)
             # Normalize
             np_arr_atm = np_arr_atm[:, 0, ...]
             np_arr_atm[1] = np_arr_atm[1] / 200

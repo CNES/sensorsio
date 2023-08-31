@@ -1,6 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import glob
 import os
@@ -12,7 +24,7 @@ import rasterio as rio
 import xarray as xr
 from dateutil.parser import parse as parse_date
 
-from sensorsio import utils
+from sensorsio import regulargrid
 
 
 class Landsat:
@@ -201,7 +213,7 @@ class Landsat:
         out_crs = crs
         if len(bands):
             img_files = [self.build_band_path(b) for b in bands]
-            np_arr, xcoords, ycoords, out_crs = utils.read_as_numpy(
+            np_arr, xcoords, ycoords, out_crs = regulargrid.read_as_numpy(
                 img_files,
                 crs=crs,
                 resolution=resolution,
@@ -226,7 +238,7 @@ class Landsat:
         np_arr_msk = None
         if len(masks):
             img_files = [self.build_band_path(m) for m in masks]
-            np_arr_msk, xcoords, ycoords, crs = utils.read_as_numpy(
+            np_arr_msk, xcoords, ycoords, crs = regulargrid.read_as_numpy(
                 img_files,
                 crs=crs,
                 resolution=resolution,

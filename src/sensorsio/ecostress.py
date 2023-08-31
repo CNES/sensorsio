@@ -1,6 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
+#
+# Licensed under the Lesser GNU LESSER GENERAL PUBLIC
+# LICENSE, Version 3 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     https://www.gnu.org/licenses/lgpl-3.0.txt
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from typing import Optional, Tuple, Union
 
@@ -12,7 +26,7 @@ import utm  # type: ignore
 import xarray as xr
 from dateutil.parser import parse as parse_date
 
-from sensorsio import utils
+from sensorsio import irregulargrid
 
 
 class Ecostress():
@@ -235,7 +249,7 @@ class Ecostress():
         # Maximum number of neighbours to consider
         max_neighbours = max(4, int(np.ceil(resolution / 69.))**2)
 
-        result_discretes, result, xcoords, ycoords = utils.swath_resample(
+        result_discretes, result, xcoords, ycoords = irregulargrid.swath_resample(
             latitude,
             longitude,
             crs,

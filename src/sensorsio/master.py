@@ -2,6 +2,19 @@
 # coding: utf8
 
 # Copyright: (c) 2022 CESBIO / Centre National d'Etudes Spatiales
+#
+# Licensed under the Lesser GNU LESSER GENERAL PUBLIC
+# LICENSE, Version 3 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     https://www.gnu.org/licenses/lgpl-3.0.txt
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import glob
 import os
@@ -15,7 +28,7 @@ import utm  # type: ignore
 import xarray as xr
 from pyhdf.SD import SD  # type: ignore
 
-from sensorsio import utils
+from sensorsio import irregulargrid
 
 
 class Master():
@@ -123,18 +136,18 @@ class Master():
         sigma = (max(resolution, 30.) / np.pi) * np.sqrt(-2 * np.log(0.1))
         max_neighbours = max(4, int(np.ceil(resolution / 30.))**2)
 
-        _, result, xcoords, ycoords = utils.swath_resample(master_lat,
-                                                           master_lon,
-                                                           crs,
-                                                           bounds,
-                                                           resolution,
-                                                           sigma,
-                                                           cutoff_sigma_mult=3.,
-                                                           continuous_variables=vois,
-                                                           fill_value=no_data_value,
-                                                           nthreads=nprocs,
-                                                           strip_size=strip_size,
-                                                           max_neighbours=max_neighbours)
+        _, result, xcoords, ycoords = irregulargrid.swath_resample(master_lat,
+                                                                   master_lon,
+                                                                   crs,
+                                                                   bounds,
+                                                                   resolution,
+                                                                   sigma,
+                                                                   cutoff_sigma_mult=3.,
+                                                                   continuous_variables=vois,
+                                                                   fill_value=no_data_value,
+                                                                   nthreads=nprocs,
+                                                                   strip_size=strip_size,
+                                                                   max_neighbours=max_neighbours)
         assert result is not None
         lst = result[:, :, :1]
         emis = result[:, :, 1:6]
