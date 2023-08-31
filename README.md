@@ -1,12 +1,16 @@
 # sensorsio
 
-`sensorsio` is a python library provides convenient functions to load Sentinel2 and other sensors data into `numpy` and `xarray`.
+`sensorsio` is a python library that provides convenient functions to load Sentinel2 (Level 2A, MAJA format) and other sensors data into `numpy` and `xarray`. It supports on the fly reprojection to a user-defined grid, which makes it suitable for the building multi-modal datacubes.
+
+# Licence
+
+sensorsio is distributed under the Apache 2.0 licence, except from modules depending on pyresample, which are distributed under the LGPL v3 licence (irregulargrid.py, master.py, ecostress.py).
 
 ## Quickstart
 
 ### Reading a Sentinel2 product
 
-Reading a **Sentinel2 L2A** product is as simple as:
+Reading a **Sentinel2 L2A (MAJA format)** product is as simple as:
 
 ```python
 # Import the sentinel 2 module
@@ -48,9 +52,9 @@ It is also very simple to reproject several images from different sensors to a c
 # Create a Sentinel2 dataset
 s2_ds = sentinel2.Sentinel2(s2)
 # Create a Pleiades dataset
-phr_ds = pleiades.Pleiades(phr_xs)
+vns_ds = venus.Venus(vns)
 # Find common grid
-box, crs = utils.bb_common([s2_ds.bounds, phr_ds.bounds],[s2_ds.crs, phr_ds.crs],snap=10)
+box, crs = utils.bb_common([s2_ds.bounds, vns_ds.bounds],[s2_ds.crs, vns_ds.crs],snap=10)
 
 # Warp Sentinel2 on this grid:
 s2_arr, _, _, _, _ = s2_ds.read_as_numpy(sentinel2.Sentinel2.GROUP_10M,
@@ -58,18 +62,16 @@ s2_arr, _, _, _, _ = s2_ds.read_as_numpy(sentinel2.Sentinel2.GROUP_10M,
                                          crs=crs,
                                          bounds=box)
 # Warp Pléiades on this grid:
-phr_arr, _, _, _ = phr_ds.read_as_numpy(pleiades.Pleiades.GROUP_XS,
+vns_arr, _, _, _ = phr_ds.read_as_numpy(venus.Venus.GROUP_5M,
                                         resolution=10,
                                         crs=crs,
                                         bounds=box,
                                         algorithm=rio.enums.Resampling.cubic)
-print(phr_arr.shape, s2_arr.shape)
+print(vns_arr.shape, s2_arr.shape)
 ```
 ```
 ((4, 5774, 2082), (4, 5774, 2082))
 ```
-
-This is demonstrated in more details in [this notebook](notebooks/joint_sensors.ipynb).
 
 ### Visualisation made easy
 
@@ -96,24 +98,24 @@ fig.show()
  
  
 ## Available drivers
-### Sentinel2 L2A (Theia)
+### Sentinel2 L2A (MAJA format)
 
-For **Sentinel2 L2A** products from Theia, it offers:
+For **Sentinel2 L2A** products from [Theia](https://theia.cnes.fr/atdistrib/rocket/#/home), it offers:
 *  Convenient attributes like day of year or sensor id
 *  Selective read of desired bands and masks
 *  On-the-fly resampling of 20m bands to 10m while reading
 *  On-the-fly projection to a different Coordinates Reference System while reading
 *  Image and geographical spatial subsetting
 *  Supports registration offsets computed by StackReg
-*  Access to solar and view angles
+*  Access to recomposed solar and view angles
 
 See [this notebook](notebooks/sentinel2.ipynb) for an in depth review of the capabilties with ```Sentinel2``` class.
 
 See [this notebook](notebooks/sentinel2_angles.ipynb) for the access to solar and view angles.
 
-### Venus L2A (Theia)
+### Venus L2A (MAJA format)
 
-For **Venus L2A** products from Theia, it offers:
+For **Venus L2A** products from [Theia](https://theia.cnes.fr/atdistrib/rocket/#/home), it offers:
 *  Convenient attributes like day of year
 *  Selective read of desired bands and masks
 *  On-the-fly projection to a different Coordinates Reference System while reading
@@ -121,6 +123,59 @@ For **Venus L2A** products from Theia, it offers:
 
 See [this notebook](notebooks/venus.ipynb) for an in depth review of the capabilties with ```Venus``` class.
 
+### Landsat8, Collection 2, Level 2 format
+
+For *Landsat-8* products that can be downloaded from [EarthExplorer](https://earthexplorer.usgs.gov/), it offers:
+*  Convenient attributes like day of year
+*  Selective read of desired bands and masks
+*  On-the-fly projection to a different Coordinates Reference System while reading
+*  Image and geographical spatial subsetting
+
+### ECOSTRESS, Collection 1
+
+For *Ecostress* products from Collection 1 that can be downloaded from [NASA LP DAAC](https://e4ftl01.cr.usgs.gov/ECOSTRESS/), you will need the LST file (```ECO2LST*```), the geom file (```ECO1BGEO*```), and optionally the cloud mask file (```ECO2CLD*```) and the rad file (```ECO1BRAD*```) for a given acquisition. The driver supports:
+*  Convenient attributes like day of year
+*  On-the-fly projection to a different Coordinates Reference System while reading
+*  Image and geographical spatial subsetting
+
+### MASTER L1B and L2 products
+
+For *MASTER* products from both L1B and L2 format that can be downloaded from [Master website](https://masterprojects.jpl.nasa.gov/Data_Products), you will require both the L1B and L2 products of a given track. It supports:
+*  Convenient attributes like day of year
+*  On-the-fly projection to a different Coordinates Reference System while reading
+*  Image and geographical spatial subsetting
+
+### SRTM
+
+For *SRTM*, it supports the *hgt* format, and from a directory containing SRTM tiles, it supports:
+*  On-the-fly projection to a different Coordinates Reference System while reading
+*  Image and geographical spatial subsetting
+* On-the-fly computation of Slope and Aspect
+
+### WorldClim
+
+For *Worldclim* data that can be downloaded from the [Worldclim website](https://worldclim.org/data/index.html), it supports:
+*  Subsetting of variables
+*  On-the-fly projection to a different Coordinates Reference System while reading
+*  Image and geographical spatial subsetting
+
+### Generic geotiff reading
+
+The [regulargrid.py](src/sensorsio/regulargrid.py) offers a generic ```read_as_numpy()``` function that servers in most drivers and can be use to quickly stack, subsample and reproject any GeoTIFF file (or other Gdal supported image formats):
+
+```python
+def read_as_numpy(img_files: List[str],
+                  crs: Optional[str] = None,
+                  resolution: float = 10,
+                  offsets: Optional[Tuple[float, float]] = None,
+                  input_no_data_value: Optional[float] = None,
+                  output_no_data_value: float = np.nan,
+                  bounds: Optional[rio.coords.BoundingBox] = None,
+                  algorithm=rio.enums.Resampling.cubic,
+                  separate: bool = False,
+                  dtype=np.float32,
+                  scale: Optional[float] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, str]:
+```
 
 ## Installation
 
@@ -128,12 +183,6 @@ Pass the path to cloned repository to ```pip install```:
 ```bash
 $ pip install sensorsio
 ```
-## TODO list
-
-- [x] Add Water Vapor and AOT bands to sentinel2 driver (in progress)
-- [x] Add solar and satellite angles to sentinel2 driver (in progress)
-- [x] Add relative orbit number computation to sentinel2 driver
-- [x] Add footprint polygon to sentinel2 driver (intersection of MGRS tile and orbit swath)
 
 ## Notes
 
