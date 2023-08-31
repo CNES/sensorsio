@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from collections import namedtuple
 from enum import Enum
 from typing import List, Optional, Tuple
+from zipfile import ZipFile
 
 import geopandas as gpd
 import numpy as np
@@ -23,7 +24,7 @@ from scipy import ndimage  # type: ignore
 from shapely import geometry  # type: ignore
 from sklearn.linear_model import LinearRegression  # type: ignore
 
-from sensorsio import utils
+from sensorsio import storage, utils
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module='geopandas')
 
@@ -80,7 +81,8 @@ class Sentinel2:
     def __init__(self,
                  product_dir: str,
                  offsets: Optional[Tuple[float, float]] = None,
-                 parse_xml=True):
+                 parse_xml: bool = True,
+                 s3_context: Optional[storage.S3Context] = None):
         """
         Constructor
 
@@ -88,9 +90,16 @@ class Sentinel2:
         :param offsets: Shifts applied to image orgin (as computed by StackReg for instance)
         :param parse_xml: If True (default), parse additional information from xml metadata file
         """
+        # Store s3 context
+        self.s3_context = s3_context
+
         # Store product DIR
         self.product_dir = os.path.normpath(product_dir)
         self.product_name = os.path.basename(self.product_dir)
+
+        # Strip zip extension if exists
+        if self.product_name.endswith(".zip") or self.product_name.endswith(".ZIP"):
+            self.product_name = self.product_name[:-4]
 
         # Look for xml file
         self.xml_file = self.build_xml_path()
@@ -131,7 +140,7 @@ class Sentinel2:
         """
         Parse metadata file
         """
-        with open(self.xml_file, encoding='utf-8') as xml_file:
+        with storage.agnostic_open(self.product_dir, self.xml_file, self.s3_context) as xml_file:
             tree = ET.parse(xml_file)
             root = tree.getroot()
             # Parse cloud cover
@@ -348,8 +357,17 @@ class Sentinel2:
         Return a dictionnary of path to detector masks at both R1 and R2 resolution
         """
         # Sorted ensure masks come in the same order in both lists
-        r1_masks = sorted(glob.glob(f"{self.product_dir}/MASKS/*DTF_R1-D*.tif"))
-        r2_masks = sorted(glob.glob(f"{self.product_dir}/MASKS/*DTF_R2-D*.tif"))
+
+        r1_masks = sorted(
+            storage.agnostic_regex(self.product_dir,
+                                   '/MASKS/*DTF_R1-D*.tif',
+                                   s3_context=self.s3_context,
+                                   use_gdal_adressing=True))
+        r2_masks = sorted(
+            storage.agnostic_regex(self.product_dir,
+                                   '/MASKS/*DTF_R2-D*.tif',
+                                   s3_context=self.s3_context,
+                                   use_gdal_adressing=True))
 
         # Named tuple to store output
         DetectorMasks = namedtuple('DetectorMasks', 'r1 r2')
@@ -367,7 +385,10 @@ class Sentinel2:
         """
         Return path to root xml file
         """
-        xml_path = glob.glob(f"{self.product_dir}/*MTD_ALL.xml")
+        xml_path = storage.agnostic_regex(self.product_dir,
+                                          "*MTD_ALL.xml",
+                                          s3_context=self.s3_context,
+                                          use_gdal_adressing=False)
         # Raise
         if len(xml_path) == 0:
             raise FileNotFoundError(
@@ -382,7 +403,11 @@ class Sentinel2:
 
         :return: The path to the band file
         """
-        band_path = glob.glob(f"{self.product_dir}/*{band_type.value}_{band.value}.tif")
+        band_path = storage.agnostic_regex(self.product_dir,
+                                           f'*{band_type.value}_{band.value}.tif',
+                                           s3_context=self.s3_context,
+                                           use_gdal_adressing=True)
+
         # Raise
         if len(band_path) == 0:
             raise FileNotFoundError(f"Could not find band  \
@@ -398,7 +423,10 @@ class Sentinel2:
 
         :return: The path to the band file
         """
-        mask_path = glob.glob(f"{self.product_dir}/MASKS/*{mask.value}_{resolution.value}.tif")
+        mask_path = storage.agnostic_regex(self.product_dir,
+                                           f'*MASKS/*{mask.value}_{resolution.value}.tif',
+                                           s3_context=self.s3_context,
+                                           use_gdal_adressing=True)
         # Raise
         if len(mask_path) == 0:
             raise FileNotFoundError(f"Could not find mask \
@@ -418,7 +446,10 @@ class Sentinel2:
         :return: The path to the ATB file
 
         """
-        atb_path = glob.glob(f"{self.product_dir}/*ATB_{resolution.value}.tif")
+        atb_path = storage.agnostic_regex(self.product_dir,
+                                          f'*ATB_{resolution.value}.tif',
+                                          s3_context=self.s3_context,
+                                          use_gdal_adressing=True)
         # Raise
         if len(atb_path) == 0:
             raise FileNotFoundError(f"Could not find ATB of resolution {resolution.value} \
@@ -490,7 +521,6 @@ class Sentinel2:
 
             # Skip first dimension
             np_arr = np_arr[0, ...]
-
         # Read masks if needed
         np_arr_msk = None
         if len(masks) != 0:
@@ -508,7 +538,6 @@ class Sentinel2:
                                                       scale=None)
             # Skip first dimension
             np_arr_msk = np_arr_msk[0, ...]
-
         # Read atmosphere band
         np_arr_atm = None
         if read_atmos:
