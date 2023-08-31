@@ -184,6 +184,21 @@ Pass the path to cloned repository to ```pip install```:
 $ pip install sensorsio
 ```
 
+## Contributing
+
+### Code quality
+
+There is a Makefile at the root of the project that allows to run the following checkers:
+* ```mypy```
+* ```yapf```
+* ```isort```
+* ```ruff```
+* ```pylint```
+
+### Automated testing
+
+* There are tests covering (almost) all modules. Some tests require test data that can be made available upon request due to their size. Those tests are flagged with ```@pytest.mark.requires_test_data```. Uncompress the test data to a folder and set the ```SENSORSIO_TEST_DATA_PATH``` environment variable before running the tests with ```pytest```
+
 ## Notes
 
 This project has been set up using PyScaffold 4.0.1. For details and usage
