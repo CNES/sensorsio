@@ -19,6 +19,7 @@ from functools import lru_cache
 
 import fiona  # type: ignore
 import numpy as np
+import geopandas as gpd
 import rasterio as rio
 from pyproj import CRS, Transformer
 from rasterio.coords import BoundingBox
@@ -78,3 +79,18 @@ def get_transform_mgrs_tile(tile: str) -> rio.Affine:
     transformer = Transformer.from_crs('+proj=latlong', get_crs_mgrs_tile(tile))
     x0, y0 = transformer.transform([ul[0]], [ul[1]])
     return rio.Affine(10.0, 0.0, np.round(x0[0]), 0.0, -10.0, np.round(y0[0]))
+
+
+@lru_cache
+def get_mgrs_tiles_from_roi(roi_poly: Polygon, crs_poly: str = "4326") -> list[str]:
+    """
+    Get MGRS tile ID list which cover a ROI
+    """
+    # Transform polygon to GeoDataFrame
+    roi = gpd.GeoDataFrame(data={'id':[1],'geometry':[roi_poly]},crs=crs_poly)
+    mgrs_grid = gpd.read_file('/vsizip/' + os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/mgrs_tiles.gpkg.zip', 'mgrs_tiles.gpkg'))
+    # Get tile IDs corresponding to the ROI
+    mgrs_tiles = gpd.overlay(mgrs_grid,roi,how="intersection")
+    tile_ids = list(mgrs_tiles.Name.values)
+    return tile_ids
+
