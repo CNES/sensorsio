@@ -90,22 +90,18 @@ class Ecostress:
 
     # From https://ecostress.jpl.nasa.gov/downloads/psd/ECOSTRESS_SDS_PSD_L2_ver1-1.pdf
     FACTORS = {
-        LST: 1.0, #0.02,
-        EMIS: 1.0, #0.002,
-        LST_ERR: 1.0 #0.04
+        LST: 1.0,  #0.02,
+        EMIS: 1.0,  #0.002,
+        LST_ERR: 1.0  #0.04
     }
 
     SHIFTS = {
         LST: 0.0,
-        EMIS: 0.0, #0.49,
+        EMIS: 0.0,  #0.49,
         LST_ERR: 0.0
     }
 
-    NO_DATA_FLAGS = {
-        LST: 0,
-        EMIS: 0,
-        LST_ERR: 0
-    }
+    NO_DATA_FLAGS = {LST: 0, EMIS: 0, LST_ERR: 0}
 
     def build_band_path(self, band: Union[Band, Mask]) -> str:
         """
@@ -120,7 +116,6 @@ class Ecostress:
             raise FileNotFoundError(
                 f"Could not find band {band.value} in product directory {self.product_dir}")
         return p[0]
-
 
     def read_as_numpy(
         self,
