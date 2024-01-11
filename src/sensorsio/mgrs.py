@@ -18,11 +18,12 @@ import os
 from functools import lru_cache
 
 import fiona  # type: ignore
-import numpy as np
 import geopandas as gpd
+import numpy as np
 import rasterio as rio
 from pyproj import CRS, Transformer
 from rasterio.coords import BoundingBox
+from rasterio.warp import transform_bounds
 from shapely import transform  # type: ignore
 from shapely.geometry import Polygon  # type: ignore
 
@@ -81,16 +82,31 @@ def get_transform_mgrs_tile(tile: str) -> rio.Affine:
     return rio.Affine(10.0, 0.0, np.round(x0[0]), 0.0, -10.0, np.round(y0[0]))
 
 
-@lru_cache
-def get_mgrs_tiles_from_roi(roi_poly: Polygon, crs_poly: str = "4326") -> list[str]:
+#@lru_cache
+def get_mgrs_tiles_from_roi(roi_bbox: rio.coords.BoundingBox,
+                            roi_crs: [CRS | int] = 4326) -> gpd.GeoDataFrame:
     """
-    Get MGRS tile ID list which cover a ROI
+    Get MGRS tile ID list which cover a ROI with the percentage of overlap
     """
+    # Convert bounds to 4326
+    wgs84_bounds = transform_bounds(roi_crs, 4326, *roi_bbox)
+    # Convert bounds to polygon
+    roi_poly = Polygon([[wgs84_bounds[0], wgs84_bounds[1]], [wgs84_bounds[0], wgs84_bounds[3]],
+                        [wgs84_bounds[2], wgs84_bounds[3]], [wgs84_bounds[2], wgs84_bounds[1]]])
     # Transform polygon to GeoDataFrame
-    roi = gpd.GeoDataFrame(data={'id':[1],'geometry':[roi_poly]},crs=crs_poly)
-    mgrs_grid = gpd.read_file('/vsizip/' + os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/mgrs_tiles.gpkg.zip', 'mgrs_tiles.gpkg'))
+    roi = gpd.GeoDataFrame(data={'id': [1], 'geometry': [roi_poly]}, crs=4326)
+    mgrs_grid = gpd.read_file('/vsizip/' + os.path.join(os.path.dirname(os.path.abspath(
+        __file__)), 'data/sentinel2/mgrs_tiles.gpkg.zip', 'mgrs_tiles.gpkg'))
     # Get tile IDs corresponding to the ROI
-    mgrs_tiles = gpd.overlay(mgrs_grid,roi,how="intersection")
-    tile_ids = list(mgrs_tiles.Name.values)
-    return tile_ids
-
+    mgrs_tiles = (gpd.overlay(mgrs_grid, roi, how="intersection").drop(
+        ["id"], axis=1).rename(columns={"geometry": "geometry_overlap"}))
+    overlaps = []
+    geometries = []
+    for tile in mgrs_tiles.itertuples():
+        geometry = mgrs_grid[mgrs_grid['Name'] == tile.Name].iloc[0].geometry
+        overlap = 100 * tile.roi_overlap.area / geometry.area
+        overlaps.append(overlap)
+        geometries.append(geometry)
+    mgrs_tiles['percent_overlap'] = overlaps
+    mgrs_tiles['geometry'] = geometries
+    return mgrs_tiles
