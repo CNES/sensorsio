@@ -99,14 +99,11 @@ def get_mgrs_tiles_from_roi(roi_bbox: rio.coords.BoundingBox,
         __file__)), 'data/sentinel2/mgrs_tiles.gpkg.zip', 'mgrs_tiles.gpkg'))
     # Get tile IDs corresponding to the ROI
     mgrs_tiles = (gpd.overlay(mgrs_grid, roi, how="intersection").drop(
-        ["id"], axis=1).rename(columns={"geometry": "overlap_geometry"}))
-    overlaps = []
-    geometries = []
-    for tile in mgrs_tiles.itertuples():
-        geometry = mgrs_grid[mgrs_grid['Name'] == tile.Name].iloc[0].geometry
-        overlap = 100 * tile.overlap_geometry.area / geometry.area
-        overlaps.append(overlap)
-        geometries.append(geometry)
-    mgrs_tiles['overlap_percentage'] = overlaps
-    mgrs_tiles['geometry'] = geometries
+        ["id"], axis=1).merge(mgrs_grid, how='inner', on="Name",
+                              suffixes=("_roi", "_mgrs")).rename(columns={
+                                  "geometry_roi": "overlap_geometry",
+                                  "geometry_mgrs": "geometry"
+                              }))
+    mgrs_tiles["overlap_percentage"] = mgrs_tiles.apply(
+        lambda tile: 100 * tile.overlap_geometry.area / tile.geometry.area, axis=1)
     return mgrs_tiles
