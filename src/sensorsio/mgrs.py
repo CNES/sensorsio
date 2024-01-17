@@ -18,10 +18,12 @@ import os
 from functools import lru_cache
 
 import fiona  # type: ignore
+import geopandas as gpd
 import numpy as np
 import rasterio as rio
 from pyproj import CRS, Transformer
 from rasterio.coords import BoundingBox
+from rasterio.warp import transform_bounds
 from shapely import transform  # type: ignore
 from shapely.geometry import Polygon  # type: ignore
 
@@ -78,3 +80,30 @@ def get_transform_mgrs_tile(tile: str) -> rio.Affine:
     transformer = Transformer.from_crs('+proj=latlong', get_crs_mgrs_tile(tile))
     x0, y0 = transformer.transform([ul[0]], [ul[1]])
     return rio.Affine(10.0, 0.0, np.round(x0[0]), 0.0, -10.0, np.round(y0[0]))
+
+
+@lru_cache
+def get_mgrs_tiles_from_roi(roi_bbox: rio.coords.BoundingBox,
+                            roi_crs: [CRS | int] = 4326) -> gpd.GeoDataFrame:
+    """
+    Get MGRS tile ID list which cover a ROI with the percentage of overlap
+    """
+    # Convert bounds to 4326
+    wgs84_bounds = transform_bounds(roi_crs, 4326, *roi_bbox)
+    # Convert bounds to polygon
+    roi_poly = Polygon([[wgs84_bounds[0], wgs84_bounds[1]], [wgs84_bounds[0], wgs84_bounds[3]],
+                        [wgs84_bounds[2], wgs84_bounds[3]], [wgs84_bounds[2], wgs84_bounds[1]]])
+    # Transform polygon to GeoDataFrame
+    roi = gpd.GeoDataFrame(data={'id': [1], 'geometry': [roi_poly]}, crs=4326)
+    mgrs_grid = gpd.read_file('/vsizip/' + os.path.join(os.path.dirname(os.path.abspath(
+        __file__)), 'data/sentinel2/mgrs_tiles.gpkg.zip', 'mgrs_tiles.gpkg'))
+    # Get tile IDs corresponding to the ROI
+    mgrs_tiles = gpd.GeoDataFrame(gpd.overlay(mgrs_grid, roi, how="intersection").drop(
+        ["id"], axis=1).merge(mgrs_grid, how='inner', on="Name",
+                              suffixes=("_roi", "_mgrs")).rename(columns={
+                                  "geometry_roi": "overlap_geometry",
+                                  "geometry_mgrs": "geometry"
+                              }))
+    mgrs_tiles["overlap_percentage"] = mgrs_tiles.apply(
+        lambda tile: 100 * tile.overlap_geometry.area / tile.geometry.area, axis=1)
+    return gpd.GeoDataFrame(mgrs_tiles)
