@@ -28,7 +28,7 @@ from dateutil.parser import parse as parse_date
 from sensorsio import regulargrid
 
 
-class Ecostress:
+class EcostressV2:
     """
     Class for ECOSTRESS product reading (Collection 2)
     """
@@ -53,7 +53,7 @@ class Ecostress:
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
 
-        with rio.open(self.build_band_path(Ecostress.LST)) as ds:
+        with rio.open(self.build_band_path(EcostressV2.LST)) as ds:
             # Get bounds
             self.bounds = ds.bounds
             self.transform = ds.transform
@@ -114,7 +114,7 @@ class Ecostress:
         bands: List[Band],
         masks: List[Mask] = ALL_MASKS,
         crs: Optional[str] = None,
-        resolution: float = 30,
+        resolution: float = 70,
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
@@ -226,7 +226,10 @@ class Ecostress:
                                   'x': xcoords,
                                   'y': ycoords
                               },
-                              attrs={'crs': crs})
+                              attrs={
+                                  'crs': crs,
+                                  'tile': self.tile
+                              })
         else:
             xarr = None
         return xarr
