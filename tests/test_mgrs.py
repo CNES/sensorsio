@@ -17,12 +17,11 @@
 This module contains tests for the mgrs functions
 """
 
-import geopandas as gpd
-import numpy as np
-import rasterio as rio
-import shapely
 import unittest
 
+import geopandas as gpd
+import rasterio as rio
+import shapely
 from shapely.geometry import Polygon
 
 from sensorsio import mgrs, utils
@@ -51,8 +50,8 @@ def test_get_mgrs_tiles_from_roi():
     shapely.equals_exact(mgrs_tiles.loc[mgrs_tiles.Name == "28PCB"].geometry.values[0], poly)
     # Bounding box in UTM
     roi_crs_utm = 32628
-    roi_bbox_utl = utils.bb_transform(roi_crs_wgs84, roi_crs_utm, roi_bbox_wgs84)
-    mgrs_tiles = mgrs.get_mgrs_tiles_from_roi(roi_bbox_wgs84, roi_crs_wgs84)
+    roi_bbox_utm = utils.bb_transform(roi_crs_wgs84, roi_crs_utm, roi_bbox_wgs84)
+    mgrs_tiles = mgrs.get_mgrs_tiles_from_roi(roi_bbox_utm, roi_crs_utm)
 
     assert isinstance(mgrs_tiles, gpd.GeoDataFrame)
     assert mgrs_tiles.crs.to_epsg() == 4326
