@@ -13,7 +13,6 @@ if __name__ == "__main__":
     try:
         setup(
 			use_scm_version={"version_scheme": "no-guess-dev"},
-            install_requires=['setuptools > 69.0.0'],
             packages=find_namespace_packages(where="src"),
             package_dir={"": "src"},
             include_package_data=True,
