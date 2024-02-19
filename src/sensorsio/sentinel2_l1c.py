@@ -114,6 +114,11 @@ class Sentinel2L1C:
                 self.relative_orbit_number = self.compute_relative_orbit_number(
                     self.orbit
                 )
+            # Do we need to apply radiometric offset (latest product format)
+            if root.find(".//*/Radiometric_Offset_List"):
+                self.radiometric_offset = -1000
+            else:
+                self.radiometric_offset = 0
 
     def compute_relative_orbit_number(self, orbit):
         """
@@ -323,6 +328,10 @@ class Sentinel2L1C:
 
             # Skip first dimension
             np_arr = np_arr[0, ...]
+
+            # Apply radiometric offset
+            np_arr = np_arr + (self.radiometric_offset / scale)
+
         # Read masks if needed
         np_arr_msk = None
         if len(masks) != 0:
