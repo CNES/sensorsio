@@ -17,6 +17,7 @@
 Driver for Sentinel2 L2A MAJA products
 """
 
+import datetime
 import os
 import warnings
 import xml.etree.ElementTree as ET
@@ -124,7 +125,9 @@ class Sentinel2:
         self.tile = self.product_name[36:41]
 
         # Get acquisition date
-        self.date = parse_date(self.product_name[11:19])
+        dt = parse_date(self.product_name[11:26])
+        self.date = datetime.date(dt.year, dt.month, dt.day)
+        self.time = dt.time()
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
 
