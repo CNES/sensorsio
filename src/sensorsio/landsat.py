@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import glob
 import os
+import xml.etree.ElementTree as ET
 from enum import Enum
 from typing import List, Optional, Tuple, Union
 
@@ -40,7 +42,18 @@ class Landsat:
         self.product_dir = os.path.normpath(product_dir)
         self.product_name = os.path.basename(self.product_dir)
 
-        self.date = parse_date(self.product_name[17:25])
+        p = glob.glob(f"{self.product_dir}/*_MTL.xml")
+        if len(p) == 0:
+            raise FileNotFoundError(
+                f"Could not find metadata file in product directory {self.product_dir}")
+        tree = ET.parse(p[0])
+        elt = tree.getroot().find(".//SCENE_CENTER_TIME")
+        time_str = ''
+        if isinstance(elt,ET.Element):
+            time_str = elt.text if elt.text is not None else ''
+        dt = parse_date(self.product_name[17:25] + ' ' + time_str)
+        self.date = datetime.date(dt.year, dt.month, dt.day)
+        self.time = dt.time().replace(microsecond=0)
         self.year = self.date.year
         self.day_of_year = self.date.timetuple().tm_yday
 

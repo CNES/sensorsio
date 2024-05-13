@@ -24,6 +24,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pytest
 import rasterio as rio
+
 from sensorsio import landsat
 
 
@@ -44,7 +45,8 @@ def test_venus_instantiate_c2l2():
 
     assert ls8.product_dir == get_landsat_c2L2_folder()
     assert ls8.product_name == 'LC08_L2SP_118051_20200206_20200823_02_T2'
-    assert ls8.date == datetime.datetime(2020, 2, 6)
+    assert ls8.date == datetime.date(2020, 2, 6)
+    assert ls8.time == datetime.time(2, 30, 14)
     assert ls8.year == 2020
     assert ls8.day_of_year == 37
     assert ls8.crs == 'epsg:32650'

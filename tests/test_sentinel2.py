@@ -24,6 +24,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pytest
 import rasterio as rio
+
 from sensorsio import mgrs, sentinel2
 
 
@@ -72,7 +73,8 @@ def test_sentinel2_instantiate_l2a_theia():
 
     assert s2.product_dir == get_sentinel2_l2a_theia_folder()
     assert s2.product_name == 'SENTINEL2B_20230219-105857-687_L2A_T31TCJ_C_V3-1'
-    assert s2.date == datetime.datetime(2023, 2, 19)
+    assert s2.date == datetime.date(2023, 2, 19)
+    assert s2.time == datetime.time(10, 58, 57)
     assert s2.year == 2023
     assert s2.day_of_year == 50
     assert s2.tile == '31TCJ'
