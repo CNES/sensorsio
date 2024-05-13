@@ -347,7 +347,7 @@ class HLSSentinel2(HLS):
     B11 = HLS.Band.B11
     B12 = HLS.Band.B12
 
-    GROUP_SR = [B1, B2, B3, B4, B5, B6, B7, B8, B8A, B9, B10, B12]
+    GROUP_SR = [B1, B2, B3, B4, B5, B6, B7, B8, B8A, B9, B10, B11, B12]
     GROUP_ALL = GROUP_SR
 
     # From https://lpdaac.usgs.gov/documents/1698/HLS_User_Guide_V2.pdf
