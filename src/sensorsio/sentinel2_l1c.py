@@ -106,30 +106,20 @@ class Sentinel2L1C:
             # Parse cloud cover
             quality_node = root.find(".//*/Cloud_Coverage_Assessment")
             if quality_node is not None:
-                self.cloud_cover = int(100 * float(quality_node.text))
+                # The value is a percentage in metadata file
+                self.cloud_cover = int(float(quality_node.text))
             # Parse orbit number
             orbit_node = root.find(".//*/SENSING_ORBIT_NUMBER")
             if orbit_node is not None:
+                # the orbit provide in the metadata file is already the relative orbit number
                 self.orbit = int(orbit_node.text)
-                self.relative_orbit_number = self.compute_relative_orbit_number(
-                    self.orbit
-                )
+                self.relative_orbit_number = self.orbit
+
             # Do we need to apply radiometric offset (latest product format)
-            if root.find(".//*/Radiometric_Offset_List"):
+            if root.find(".//*/Radiometric_Offset_List") is not None:
                 self.radiometric_offset = -1000
             else:
                 self.radiometric_offset = 0
-
-    def compute_relative_orbit_number(self, orbit):
-        """
-        Compute relative orbit number from absolute orbit and sensor id
-        """
-        phase = None
-        if self.satellite is Sentinel2L1C.Satellite.S2A:
-            phase = 2
-        else:
-            phase = -27
-        return ((orbit + phase) % 143) + 1
 
     class Satellite(Enum):
         """
@@ -318,7 +308,7 @@ class Sentinel2L1C:
                 resolution=resolution,
                 offsets=self.offsets,
                 output_no_data_value=no_data_value,
-                input_no_data_value=-10000,
+                input_no_data_value=0,
                 bounds=bounds,
                 algorithm=algorithm,
                 separate=True,
@@ -330,7 +320,7 @@ class Sentinel2L1C:
             np_arr = np_arr[0, ...]
 
             # Apply radiometric offset
-            np_arr = np_arr + (self.radiometric_offset / scale)
+            np_arr = (np_arr + self.radiometric_offset) / scale
 
         # Read masks if needed
         np_arr_msk = None
