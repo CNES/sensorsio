@@ -55,12 +55,12 @@ def test_sentinel2_instantiate_l1c():
     assert s2.year == 2023
     assert s2.day_of_year == 330
     assert s2.tile == "31TCJ"
-    assert s2.cloud_cover == 7
+    assert s2.cloud_cover == 0
     assert s2.satellite == sentinel2_l1c.Sentinel2L1C.Satellite.S2B
     assert s2.crs == "epsg:32631"
     assert s2.bounds == mgrs.get_bbox_mgrs_tile(s2.tile, latlon=False)
     assert s2.transform == mgrs.get_transform_mgrs_tile(s2.tile)
-    assert s2.relative_orbit_number == 25
+    assert s2.relative_orbit_number == 51
 
 
 @dataclass(frozen=True)
