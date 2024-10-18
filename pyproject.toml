@@ -25,7 +25,7 @@ dependencies = [
     "h5py>=3.11.0",
     "importlib-metadata>=8.2.0",
     "mgrs>=1.5.0",
-    "numpy<2",
+    "numpy>=2",
     "pandas>=2.2.2",
     "pandas-stubs>=2.2.2.240603",
     "pyhdf>=0.11.4",
