@@ -322,6 +322,9 @@ class Sentinel2L1C:
             # Apply radiometric offset
             np_arr = (np_arr + self.radiometric_offset) / scale
 
+            # Cast back to required dtype
+            np_arr = np_arr.astype(dtype)
+            
         # Read masks if needed
         np_arr_msk = None
         if len(masks) != 0:

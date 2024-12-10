@@ -131,7 +131,7 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
     bands_arr, mask_arr, xcoords, ycoords, crs = s2_dataset.read_as_numpy(
         **parameters.__dict__
     )
-
+    assert bands_arr.dtype == parameters.dtype
     assert bands_arr.shape == (len(parameters.bands), *parameters.expected_shape())
     assert mask_arr is not None and mask_arr.shape == (
         len(parameters.masks),
