@@ -37,7 +37,7 @@ from sklearn.linear_model import LinearRegression  # type: ignore
 
 from sensorsio import regulargrid, storage, utils
 
-warnings.filterwarnings("ignore", category=RuntimeWarning, module='geopandas')
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="geopandas")
 
 
 def get_theia_tiles():
@@ -45,11 +45,13 @@ def get_theia_tiles():
     Return a dataframe with tiles produced by Theia
     """
     return gpd.read_file(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     'data/sentinel2/theia_s2.gpkg')).set_index('Name')
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "data/sentinel2/theia_s2.gpkg"
+        )
+    ).set_index("Name")
 
 
-def find_tile_orbit_pairs(bounds: rio.coords.BoundingBox, crs='epsg:4326'):
+def find_tile_orbit_pairs(bounds: rio.coords.BoundingBox, crs="epsg:4326"):
     """
     From bounding box and CRS, return a list of pairs of MGRS tiles
     and Sentinel2 relative orbits that covers the area, in the form of a dataframe.
@@ -58,12 +60,27 @@ def find_tile_orbit_pairs(bounds: rio.coords.BoundingBox, crs='epsg:4326'):
     wgs84_bounds = rio.warp.transform_bounds(crs, 4326, *bounds)
 
     # Convert bounds to polygon
-    aoi = geometry.Polygon([[wgs84_bounds[0], wgs84_bounds[1]], [wgs84_bounds[0], wgs84_bounds[3]],
-                            [wgs84_bounds[2], wgs84_bounds[3]], [wgs84_bounds[2], wgs84_bounds[1]]])
-    mgrs_df = gpd.read_file('/vsizip/' + os.path.join(os.path.dirname(os.path.abspath(
-        __file__)), 'data/sentinel2/mgrs_tiles.gpkg.zip', 'mgrs_tiles.gpkg'))
+    aoi = geometry.Polygon(
+        [
+            [wgs84_bounds[0], wgs84_bounds[1]],
+            [wgs84_bounds[0], wgs84_bounds[3]],
+            [wgs84_bounds[2], wgs84_bounds[3]],
+            [wgs84_bounds[2], wgs84_bounds[1]],
+        ]
+    )
+    mgrs_df = gpd.read_file(
+        "/vsizip/"
+        + os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/sentinel2/mgrs_tiles.gpkg.zip",
+            "mgrs_tiles.gpkg",
+        )
+    )
     orbits_df = gpd.read_file(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/sentinel2/orbits.gpkg'))
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "data/sentinel2/orbits.gpkg"
+        )
+    )
     intersections = []
     for _, mgrs_row in mgrs_df.iterrows():
         if aoi.intersects(mgrs_row.geometry):
@@ -72,15 +89,30 @@ def find_tile_orbit_pairs(bounds: rio.coords.BoundingBox, crs='epsg:4326'):
             orbits = []
             for _, orbit_row in orbits_df.iterrows():
                 # Last test is to exclude weird duplicates (malformed gpkg ?)
-                if orbit_row.geometry.intersects(
-                        inter_mgrs_aoi) and orbit_row.orbit_number not in orbits:
+                if (
+                    orbit_row.geometry.intersects(inter_mgrs_aoi)
+                    and orbit_row.orbit_number not in orbits
+                ):
                     orbits.append(orbit_row.orbit_number)
-                    inter_mgrs_aoi_orbit = inter_mgrs_aoi.intersection(orbit_row.geometry)
+                    inter_mgrs_aoi_orbit = inter_mgrs_aoi.intersection(
+                        orbit_row.geometry
+                    )
                     mgrs_orbit_coverage = inter_mgrs_aoi_orbit.area / aoi.area
                     intersections.append(
-                        (mgrs_row.Name, orbit_row.orbit_number, mgrs_coverage, mgrs_orbit_coverage))
+                        (
+                            mgrs_row.Name,
+                            orbit_row.orbit_number,
+                            mgrs_coverage,
+                            mgrs_orbit_coverage,
+                        )
+                    )
     # Build a standard pandas df from tuples
-    labels = ['tile_id', 'relative_orbit_number', 'tile_coverage', 'tile_and_orbit_coverage']
+    labels = [
+        "tile_id",
+        "relative_orbit_number",
+        "tile_coverage",
+        "tile_and_orbit_coverage",
+    ]
     dataframe = pd.DataFrame.from_records(intersections, columns=labels)
     return dataframe
 
@@ -89,11 +121,14 @@ class Sentinel2:
     """
     Class for Sentinel2 L2A (MAJA format) product reading
     """
-    def __init__(self,
-                 product_dir: str,
-                 offsets: Optional[Tuple[float, float]] = None,
-                 parse_xml: bool = True,
-                 s3_context: Optional[storage.S3Context] = None):
+
+    def __init__(
+        self,
+        product_dir: str,
+        offsets: Optional[Tuple[float, float]] = None,
+        parse_xml: bool = True,
+        s3_context: Optional[storage.S3Context] = None,
+    ):
         """
         Constructor
 
@@ -147,13 +182,15 @@ class Sentinel2:
             self.parse_xml()
 
     def __repr__(self):
-        return f'{self.satellite.value}, {self.date}, {self.tile}'
+        return f"{self.satellite.value}, {self.date}, {self.tile}"
 
     def parse_xml(self):
         """
         Parse metadata file
         """
-        with storage.agnostic_open(self.product_dir, self.xml_file, self.s3_context) as xml_file:
+        with storage.agnostic_open(
+            self.product_dir, self.xml_file, self.s3_context
+        ) as xml_file:
             tree = ET.parse(xml_file)
             root = tree.getroot()
             # Parse cloud cover
@@ -164,33 +201,42 @@ class Sentinel2:
             orbit_node = root.find(".//ORBIT_NUMBER")
             if orbit_node is not None:
                 self.orbit = int(orbit_node.text)
-                self.relative_orbit_number = self.compute_relative_orbit_number(self.orbit)
+                self.relative_orbit_number = self.compute_relative_orbit_number(
+                    self.orbit
+                )
 
             # Internal parsing function for angular grids
             def parse_angular_grid_node(node):
                 values = []
-                for channel in node.find('Values_List'):
+                for channel in node.find("Values_List"):
                     values.append(np.array([float(t) for t in channel.text.split()]))
                     values_array = np.stack(values)
                 return values_array
 
             # Parse sun angles
-            Angles = namedtuple('Angles', 'zenith azimuth')
+            Angles = namedtuple("Angles", "zenith azimuth")
 
             self.sun_angles = Angles(
-                parse_angular_grid_node(root.find('.//Angles_Grids_List/Sun_Angles_Grids/Zenith')),
-                parse_angular_grid_node(root.find('.//Angles_Grids_List/Sun_Angles_Grids/Azimuth')))
+                parse_angular_grid_node(
+                    root.find(".//Angles_Grids_List/Sun_Angles_Grids/Zenith")
+                ),
+                parse_angular_grid_node(
+                    root.find(".//Angles_Grids_List/Sun_Angles_Grids/Azimuth")
+                ),
+            )
 
             # Parse incidence angles
             self.incidence_angles = {}
-            for band in root.find('.//Angles_Grids_List/Viewing_Incidence_Angles_Grids_List'):
-                if band.attrib['band_id'] != 'B1':
-                    band_key = self.Band(band.attrib['band_id'])
+            for band in root.find(
+                ".//Angles_Grids_List/Viewing_Incidence_Angles_Grids_List"
+            ):
+                if band.attrib["band_id"] != "B1":
+                    band_key = self.Band(band.attrib["band_id"])
                     band_dict = {}
-                    for detector in band.findall('Viewing_Incidence_Angles_Grids'):
-                        det_key = self.Detector(int(detector.attrib['detector_id']))
-                        zenith = parse_angular_grid_node(detector.find('Zenith'))
-                        azimuth = parse_angular_grid_node(detector.find('Azimuth'))
+                    for detector in band.findall("Viewing_Incidence_Angles_Grids"):
+                        det_key = self.Detector(int(detector.attrib["detector_id"]))
+                        zenith = parse_angular_grid_node(detector.find("Zenith"))
+                        azimuth = parse_angular_grid_node(detector.find("Azimuth"))
                         band_dict[det_key] = Angles(zenith, azimuth)
                     self.incidence_angles[band_key] = band_dict
 
@@ -209,29 +255,33 @@ class Sentinel2:
         """
         Enum class representing Sentinel2 satellite id
         """
-        S2A = 'SENTINEL2A'
-        S2B = 'SENTINEL2B'
+
+        S2A = "SENTINEL2A"
+        S2B = "SENTINEL2B"
+        S2C = "SENTINEL2C"
 
     # Aliases
     S2A = Satellite.S2A
     S2B = Satellite.S2B
+    S2C = Satellite.S2C
 
     class Band(Enum):
         """
         Enum class representing Sentinel2 spectral bands
         """
-        B2 = 'B2'
-        B3 = 'B3'
-        B4 = 'B4'
-        B5 = 'B5'
-        B6 = 'B6'
-        B7 = 'B7'
-        B8 = 'B8'
-        B8A = 'B8A'
-        B9 = 'B9'
-        B10 = 'B10'
-        B11 = 'B11'
-        B12 = 'B12'
+
+        B2 = "B2"
+        B3 = "B3"
+        B4 = "B4"
+        B5 = "B5"
+        B6 = "B6"
+        B7 = "B7"
+        B8 = "B8"
+        B8A = "B8A"
+        B9 = "B9"
+        B10 = "B10"
+        B11 = "B11"
+        B12 = "B12"
 
     # Aliases
     B2 = Band.B2
@@ -251,10 +301,11 @@ class Sentinel2:
         """
         Enum class for Sentinel2 L2A masks
         """
-        SAT = 'SAT'
-        CLM = 'CLM'
-        EDG = 'EDG'
-        MG2 = 'MG2'
+
+        SAT = "SAT"
+        CLM = "CLM"
+        EDG = "EDG"
+        MG2 = "MG2"
 
     # Aliases
     SAT = Mask.SAT
@@ -266,8 +317,9 @@ class Sentinel2:
         """
         # Enum class for mask and Atmos resolutions
         """
-        R1 = 'R1'
-        R2 = 'R2'
+
+        R1 = "R1"
+        R2 = "R2"
 
     # Aliases for resolution
     R1 = Res.R1
@@ -277,7 +329,8 @@ class Sentinel2:
         """
         Atmospheric bands
         """
-        ATB = 'ATB'
+
+        ATB = "ATB"
 
     # Aliases for atmosphere bands
     ATB = Atmos.ATB
@@ -293,8 +346,9 @@ class Sentinel2:
         """
         Enum for BandType
         """
-        FRE = 'FRE'
-        SRE = 'SRE'
+
+        FRE = "FRE"
+        SRE = "SRE"
 
     # Aliases for band type
     FRE = BandType.FRE
@@ -304,6 +358,7 @@ class Sentinel2:
         """
         Enum class for detectors
         """
+
         D01 = 1
         D02 = 2
         D03 = 3
@@ -329,7 +384,7 @@ class Sentinel2:
         B8A: 0.325,
         B9: 0.39,
         B11: 0.21,
-        B12: 0.19
+        B12: 0.19,
     }
 
     # Resolution
@@ -344,13 +399,15 @@ class Sentinel2:
         B8A: 20,
         B9: 60,
         B11: 60,
-        B12: 60
+        B12: 60,
     }
 
     @staticmethod
-    def generate_psf_kernel(bands: List[Band],
-                            resolution: float = 0.5,
-                            half_kernel_width: Optional[int] = None):
+    def generate_psf_kernel(
+        bands: List[Band],
+        resolution: float = 0.5,
+        half_kernel_width: Optional[int] = None,
+    ):
         """
         Generate PSF kernels from list of bands
 
@@ -362,8 +419,19 @@ class Sentinel2:
         :return: The kernels as a Tensor of shape
                  [len(bands),2*half_kernel_width+1, 2*half_kernel_width+1]
         """
-        return np.stack([(utils.generate_psf_kernel(resolution, Sentinel2.RES[b], Sentinel2.MTF[b],
-                                                    half_kernel_width)) for b in bands])
+        return np.stack(
+            [
+                (
+                    utils.generate_psf_kernel(
+                        resolution,
+                        Sentinel2.RES[b],
+                        Sentinel2.MTF[b],
+                        half_kernel_width,
+                    )
+                )
+                for b in bands
+            ]
+        )
 
     def build_detectors_masks_path(self):
         """
@@ -372,23 +440,29 @@ class Sentinel2:
         # Sorted ensure masks come in the same order in both lists
 
         r1_masks = sorted(
-            storage.agnostic_regex(self.product_dir,
-                                   '/MASKS/*DTF_R1-D*.tif',
-                                   s3_context=self.s3_context,
-                                   use_gdal_adressing=True))
+            storage.agnostic_regex(
+                self.product_dir,
+                "/MASKS/*DTF_R1-D*.tif",
+                s3_context=self.s3_context,
+                use_gdal_adressing=True,
+            )
+        )
         r2_masks = sorted(
-            storage.agnostic_regex(self.product_dir,
-                                   '/MASKS/*DTF_R2-D*.tif',
-                                   s3_context=self.s3_context,
-                                   use_gdal_adressing=True))
+            storage.agnostic_regex(
+                self.product_dir,
+                "/MASKS/*DTF_R2-D*.tif",
+                s3_context=self.s3_context,
+                use_gdal_adressing=True,
+            )
+        )
 
         # Named tuple to store output
-        DetectorMasks = namedtuple('DetectorMasks', 'r1 r2')
+        DetectorMasks = namedtuple("DetectorMasks", "r1 r2")
 
         output = {}
 
         # Collect all pairs of detectors
-        for (r1_mask, r2_mask) in zip(r1_masks, r2_masks):
+        for r1_mask, r2_mask in zip(r1_masks, r2_masks):
             detector_idx = self.Detector(int(r1_mask[-6:-4]))
             output[detector_idx] = DetectorMasks(r1_mask, r2_mask)
 
@@ -398,14 +472,17 @@ class Sentinel2:
         """
         Return path to root xml file
         """
-        xml_path = storage.agnostic_regex(self.product_dir,
-                                          "*MTD_ALL.xml",
-                                          s3_context=self.s3_context,
-                                          use_gdal_adressing=False)
+        xml_path = storage.agnostic_regex(
+            self.product_dir,
+            "*MTD_ALL.xml",
+            s3_context=self.s3_context,
+            use_gdal_adressing=False,
+        )
         # Raise
         if len(xml_path) == 0:
             raise FileNotFoundError(
-                f"Could not find root XML file in product directory {self.product_dir}")
+                f"Could not find root XML file in product directory {self.product_dir}"
+            )
         return xml_path[0]
 
     def build_band_path(self, band: Band, band_type: BandType = FRE) -> str:
@@ -416,16 +493,20 @@ class Sentinel2:
 
         :return: The path to the band file
         """
-        band_path = storage.agnostic_regex(self.product_dir,
-                                           f'*{band_type.value}_{band.value}.tif',
-                                           s3_context=self.s3_context,
-                                           use_gdal_adressing=True)
+        band_path = storage.agnostic_regex(
+            self.product_dir,
+            f"*{band_type.value}_{band.value}.tif",
+            s3_context=self.s3_context,
+            use_gdal_adressing=True,
+        )
 
         # Raise
         if len(band_path) == 0:
-            raise FileNotFoundError(f"Could not find band  \
+            raise FileNotFoundError(
+                f"Could not find band  \
             {band.value} of type {band_type.value} in product \
-            directory {self.product_dir}")
+            directory {self.product_dir}"
+            )
         return band_path[0]
 
     def build_mask_path(self, mask: Mask, resolution: Res = R1) -> str:
@@ -436,15 +517,19 @@ class Sentinel2:
 
         :return: The path to the band file
         """
-        mask_path = storage.agnostic_regex(self.product_dir,
-                                           f'*MASKS/*{mask.value}_{resolution.value}.tif',
-                                           s3_context=self.s3_context,
-                                           use_gdal_adressing=True)
+        mask_path = storage.agnostic_regex(
+            self.product_dir,
+            f"*MASKS/*{mask.value}_{resolution.value}.tif",
+            s3_context=self.s3_context,
+            use_gdal_adressing=True,
+        )
         # Raise
         if len(mask_path) == 0:
-            raise FileNotFoundError(f"Could not find mask \
+            raise FileNotFoundError(
+                f"Could not find mask \
             {mask.value} of resolution {resolution.value} in \
-            product directory {self.product_dir}")
+            product directory {self.product_dir}"
+            )
         return mask_path[0]
 
     def build_atmos_path(self, resolution: Res = R1) -> str:
@@ -459,14 +544,18 @@ class Sentinel2:
         :return: The path to the ATB file
 
         """
-        atb_path = storage.agnostic_regex(self.product_dir,
-                                          f'*ATB_{resolution.value}.tif',
-                                          s3_context=self.s3_context,
-                                          use_gdal_adressing=True)
+        atb_path = storage.agnostic_regex(
+            self.product_dir,
+            f"*ATB_{resolution.value}.tif",
+            s3_context=self.s3_context,
+            use_gdal_adressing=True,
+        )
         # Raise
         if len(atb_path) == 0:
-            raise FileNotFoundError(f"Could not find ATB of resolution {resolution.value} \
-                in product directory {self.product_dir}")
+            raise FileNotFoundError(
+                f"Could not find ATB of resolution {resolution.value} \
+                in product directory {self.product_dir}"
+            )
         return atb_path[0]
 
     def read_as_numpy(
@@ -482,8 +571,15 @@ class Sentinel2:
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.dtype('float32'),
-    ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray], np.ndarray, np.ndarray, str]:
+        dtype: np.dtype = np.dtype("float32"),
+    ) -> Tuple[
+        np.ndarray,
+        Optional[np.ndarray],
+        Optional[np.ndarray],
+        np.ndarray,
+        np.ndarray,
+        str,
+    ]:
         """Read bands from Sentinel2 products as a numpy
         ndarray. Depending on the parameters, an internal WarpedVRT
         dataset might be used.
@@ -530,7 +626,8 @@ class Sentinel2:
                 algorithm=algorithm,
                 separate=True,
                 dtype=dtype,
-                scale=scale)
+                scale=scale,
+            )
 
             # Skip first dimension
             np_arr = np_arr[0, ...]
@@ -538,34 +635,38 @@ class Sentinel2:
         np_arr_msk = None
         if len(masks) != 0:
             mask_files = [self.build_mask_path(m, res) for m in masks]
-            np_arr_msk, _, _, _ = regulargrid.read_as_numpy(mask_files,
-                                                            crs=crs,
-                                                            resolution=resolution,
-                                                            offsets=self.offsets,
-                                                            output_no_data_value=no_data_value,
-                                                            input_no_data_value=-10000,
-                                                            bounds=bounds,
-                                                            algorithm=rio.enums.Resampling.nearest,
-                                                            separate=True,
-                                                            dtype=np.uint8,
-                                                            scale=None)
+            np_arr_msk, _, _, _ = regulargrid.read_as_numpy(
+                mask_files,
+                crs=crs,
+                resolution=resolution,
+                offsets=self.offsets,
+                output_no_data_value=no_data_value,
+                input_no_data_value=-10000,
+                bounds=bounds,
+                algorithm=rio.enums.Resampling.nearest,
+                separate=True,
+                dtype=np.uint8,
+                scale=None,
+            )
             # Skip first dimension
             np_arr_msk = np_arr_msk[0, ...]
         # Read atmosphere band
         np_arr_atm = None
         if read_atmos:
             atmos_file = [self.build_atmos_path(res)]
-            np_arr_atm, _, _, _ = regulargrid.read_as_numpy(atmos_file,
-                                                            crs=crs,
-                                                            resolution=resolution,
-                                                            offsets=self.offsets,
-                                                            output_no_data_value=no_data_value,
-                                                            input_no_data_value=-10000,
-                                                            bounds=bounds,
-                                                            algorithm=algorithm,
-                                                            separate=True,
-                                                            dtype=np.dtype('float32'),
-                                                            scale=None)
+            np_arr_atm, _, _, _ = regulargrid.read_as_numpy(
+                atmos_file,
+                crs=crs,
+                resolution=resolution,
+                offsets=self.offsets,
+                output_no_data_value=no_data_value,
+                input_no_data_value=-10000,
+                bounds=bounds,
+                algorithm=algorithm,
+                separate=True,
+                dtype=np.dtype("float32"),
+                scale=None,
+            )
             # Normalize
             np_arr_atm = np_arr_atm[:, 0, ...]
             np_arr_atm[1] = np_arr_atm[1] / 200
@@ -586,7 +687,8 @@ class Sentinel2:
         no_data_value: float = np.nan,
         bounds: Optional[rio.coords.BoundingBox] = None,
         algorithm=rio.enums.Resampling.cubic,
-        dtype: np.dtype = np.dtype('float32')) -> xr.Dataset:
+        dtype: np.dtype = np.dtype("float32"),
+    ) -> xr.Dataset:
         """Read bands from Sentinel2 products as a numpy
 
         ndarray. Depending on the parameters, an internal WarpedVRT
@@ -614,8 +716,19 @@ class Sentinel2:
             masks = self.ALL_MASKS
 
         np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs = self.read_as_numpy(
-            bands, band_type, masks, read_atmos, res, scale, crs, resolution, no_data_value, bounds,
-            algorithm, dtype)
+            bands,
+            band_type,
+            masks,
+            read_atmos,
+            res,
+            scale,
+            crs,
+            resolution,
+            no_data_value,
+            bounds,
+            algorithm,
+            dtype,
+        )
 
         variables = {}
         for i, band in enumerate(bands):
@@ -624,47 +737,45 @@ class Sentinel2:
             for i, mask in enumerate(masks):
                 variables[mask.value] = (["t", "y", "x"], np_arr_msk[None, i, ...])
         if np_arr_atm is not None:
-            variables['WCV'] = (["t", "y", "x"], np_arr_atm[None, 0, ...])
-            variables['AOT'] = (["t", "y", "x"], np_arr_atm[None, 1, ...])
+            variables["WCV"] = (["t", "y", "x"], np_arr_atm[None, 0, ...])
+            variables["AOT"] = (["t", "y", "x"], np_arr_atm[None, 1, ...])
 
-        xarr = xr.Dataset(variables,
-                          coords={
-                              't': [self.date],
-                              'x': xcoords,
-                              'y': ycoords
-                          },
-                          attrs={
-                              'tile': self.tile,
-                              'type': band_type.value,
-                              'crs': crs
-                          })
+        xarr = xr.Dataset(
+            variables,
+            coords={"t": [self.date], "x": xcoords, "y": ycoords},
+            attrs={"tile": self.tile, "type": band_type.value, "crs": crs},
+        )
         return xarr
 
-    def upsample_angular_grid(self, grid: np.ndarray, res: Res = Res.R1, order: int = 1) -> ndimage:
+    def upsample_angular_grid(
+        self, grid: np.ndarray, res: Res = Res.R1, order: int = 1
+    ) -> ndimage:
         """
         upsample given angular grid at target resolution
         """
         if res == self.Res.R1:
-            target_resolution = 10.
+            target_resolution = 10.0
         else:
-            target_resolution = 20.
+            target_resolution = 20.0
 
         # Angular grids have a resolution of 5 km
         scale_factor = 5000 / target_resolution
 
         input_grid = np.array(grid)
 
-        zoomed_grid = ndimage.zoom(input_grid,
-                                   scale_factor,
-                                   prefilter=False,
-                                   order=order,
-                                   mode='nearest',
-                                   grid_mode=True)
+        zoomed_grid = ndimage.zoom(
+            input_grid,
+            scale_factor,
+            prefilter=False,
+            order=order,
+            mode="nearest",
+            grid_mode=True,
+        )
         nb_pixels = int(10980 * 10 / target_resolution)
         # We assume that angular center of first pixel correspond to
         # center of first 10m pixel
-        offset = int(scale_factor / 2.)
-        return zoomed_grid[offset:nb_pixels + offset, offset:nb_pixels + offset]
+        offset = int(scale_factor / 2.0)
+        return zoomed_grid[offset : nb_pixels + offset, offset : nb_pixels + offset]
 
     def extrapolate_grid(self, grid):
         """
@@ -674,19 +785,18 @@ class Sentinel2:
         x_idx, y_idx = np.indices(grid.shape)
         reg = LinearRegression().fit(
             np.stack((x_idx[~np.isnan(grid)], y_idx[~np.isnan(grid)]), axis=1),
-            grid[~np.isnan(grid)])
-        grid_filled = reg.predict(np.stack((x_idx.ravel(), y_idx.ravel()),
-                                           axis=1)).reshape(grid.shape)
+            grid[~np.isnan(grid)],
+        )
+        grid_filled = reg.predict(
+            np.stack((x_idx.ravel(), y_idx.ravel()), axis=1)
+        ).reshape(grid.shape)
         out_grid[np.isnan(grid)] = grid_filled[np.isnan(grid)]
 
         return out_grid
 
-    def upsample_by_viewing_directions(self,
-                                       zenith,
-                                       azimuth,
-                                       res: Res = Res.R1,
-                                       extrapolate=False,
-                                       order: int = 1):
+    def upsample_by_viewing_directions(
+        self, zenith, azimuth, res: Res = Res.R1, extrapolate=False, order: int = 1
+    ):
         """
         Upsample angular grid for each viewing direction
         """
@@ -720,8 +830,8 @@ class Sentinel2:
 
         # dy == 0 and dxy == 0
         mask = np.logical_and(zoomed_dy == 0, zoomed_dx == 0)
-        zoomed_azimuth[mask] = 0.
-        zoomed_zenith[mask] = 0.
+        zoomed_azimuth[mask] = 0.0
+        zoomed_zenith[mask] = 0.0
 
         # Final conversion to degrees
         zoomed_zenith = np.rad2deg(zoomed_zenith)
@@ -729,7 +839,9 @@ class Sentinel2:
 
         return zoomed_zenith, zoomed_azimuth
 
-    def read_solar_angles_as_numpy(self, res: Res = Res.R1, interpolation_order: int = 1):
+    def read_solar_angles_as_numpy(
+        self, res: Res = Res.R1, interpolation_order: int = 1
+    ):
         """
         Return zenith and azimuth solar angle as a tuple fo 2 numpy
         arrays at requested resolution
@@ -740,15 +852,16 @@ class Sentinel2:
 
         # Call up-sampling routine
         assert self.sun_angles is not None
-        return self.upsample_by_viewing_directions(self.sun_angles.zenith,
-                                                   self.sun_angles.azimuth,
-                                                   res,
-                                                   order=interpolation_order)
+        return self.upsample_by_viewing_directions(
+            self.sun_angles.zenith,
+            self.sun_angles.azimuth,
+            res,
+            order=interpolation_order,
+        )
 
-    def read_incidence_angles_as_numpy(self,
-                                       band: Band = Band.B2,
-                                       res: Res = Res.R1,
-                                       interpolation_order: int = 1):
+    def read_incidence_angles_as_numpy(
+        self, band: Band = Band.B2, res: Res = Res.R1, interpolation_order: int = 1
+    ):
         """
         Main method for reading incidence angles as numpy arrays
         """
@@ -776,7 +889,6 @@ class Sentinel2:
 
         # Loop on all detectors
         for det, angles in band_angles.items():
-
             if det in detector_masks:
                 # Get path to detector mask
                 current_detector_mask_path = detector_masks[det].r1
@@ -792,7 +904,8 @@ class Sentinel2:
                     angles.azimuth,
                     res=res,
                     order=interpolation_order,
-                    extrapolate=True)
+                    extrapolate=True,
+                )
 
                 # Apply masking
                 zoomed_zenith[current_detector_mask == 0] = np.nan
@@ -804,11 +917,19 @@ class Sentinel2:
 
                 # Sort out detectors
                 if det.value % 2 == 1:
-                    odd_zenith_angles[valid_zenith_mask] = zoomed_zenith[valid_zenith_mask]
-                    odd_azimuth_angles[valid_azimuth_mask] = zoomed_azimuth[valid_azimuth_mask]
+                    odd_zenith_angles[valid_zenith_mask] = zoomed_zenith[
+                        valid_zenith_mask
+                    ]
+                    odd_azimuth_angles[valid_azimuth_mask] = zoomed_azimuth[
+                        valid_azimuth_mask
+                    ]
                 else:
-                    even_zenith_angles[valid_zenith_mask] = zoomed_zenith[valid_zenith_mask]
-                    even_azimuth_angles[valid_azimuth_mask] = zoomed_azimuth[valid_azimuth_mask]
+                    even_zenith_angles[valid_zenith_mask] = zoomed_zenith[
+                        valid_zenith_mask
+                    ]
+                    even_azimuth_angles[valid_azimuth_mask] = zoomed_azimuth[
+                        valid_azimuth_mask
+                    ]
 
                 # Clear
                 del zoomed_zenith
@@ -816,4 +937,9 @@ class Sentinel2:
                 del valid_zenith_mask
                 del valid_azimuth_mask
 
-        return even_zenith_angles, odd_zenith_angles, even_azimuth_angles, odd_azimuth_angles
+        return (
+            even_zenith_angles,
+            odd_zenith_angles,
+            even_azimuth_angles,
+            odd_azimuth_angles,
+        )

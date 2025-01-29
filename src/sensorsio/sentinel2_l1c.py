@@ -128,10 +128,12 @@ class Sentinel2L1C:
 
         S2A = "SENTINEL2A"
         S2B = "SENTINEL2B"
+        S2C = "SENTINEL2C"
 
     # Aliases
     S2A = Satellite.S2A
     S2B = Satellite.S2B
+    S2C = Satellite.S2C
 
     class Band(Enum):
         """
@@ -324,7 +326,7 @@ class Sentinel2L1C:
 
             # Cast back to required dtype
             np_arr = np_arr.astype(dtype)
-            
+
         # Read masks if needed
         np_arr_msk = None
         if len(masks) != 0:
