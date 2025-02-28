@@ -111,11 +111,13 @@ class Sentinel2L3A:
         S2X = "SENTINEL2X"
         S2A = "SENTINEL2A"
         S2B = "SENTINEL2B"
+        S2C = "SENTINEL2C"
 
     # Aliases
     S2X = Satellite.S2X
     S2A = Satellite.S2A
     S2B = Satellite.S2B
+    S2C = Satellite.S2C
 
     class Band(Enum):
         """
