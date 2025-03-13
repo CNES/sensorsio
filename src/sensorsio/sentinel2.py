@@ -398,8 +398,8 @@ class Sentinel2:
         B8: 10,
         B8A: 20,
         B9: 60,
-        B11: 60,
-        B12: 60,
+        B11: 20,
+        B12: 20,
     }
 
     @staticmethod
