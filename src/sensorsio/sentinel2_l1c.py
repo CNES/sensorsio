@@ -195,8 +195,8 @@ class Sentinel2L1C:
         B8A: 20,
         B9: 60,
         B10: 60,
-        B11: 60,
-        B12: 60,
+        B11: 20,
+        B12: 20,
     }
 
     def build_xml_path(self) -> str:
