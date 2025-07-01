@@ -375,3 +375,24 @@ def test_read_incidence_angle_with_bounding_box_as_numpy():
             even_az_box,
             odd_az_box,
         )
+
+
+@pytest.mark.requires_test_data
+def test_read_incidence_angles_with_zip_file():
+    """
+    Test that angles for unzip/zip files are the same
+    """
+    s2_dataset_path = get_sentinel2_l2a_theia_folder()
+    s2_dataset = sentinel2.Sentinel2(s2_dataset_path)
+    s2_dataset_path_zip = s2_dataset_path + ".zip"
+    s2_dataset_zip = sentinel2.Sentinel2(s2_dataset_path_zip)
+
+    # Read angle for regular file
+    angles = s2_dataset.read_incidence_angles_as_numpy()
+
+    # Read angle for zip file
+    angles_zip = s2_dataset_zip.read_incidence_angles_as_numpy()
+
+    for angle, angle_zip in zip(angles, angles_zip):
+        assert np.allclose(angle, angle_zip, equal_nan=True)
+

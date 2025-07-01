@@ -443,7 +443,7 @@ class Sentinel2:
         r1_masks = sorted(
             storage.agnostic_regex(
                 self.product_dir,
-                "/MASKS/*DTF_R1-D*.tif",
+                "*MASKS/*DTF_R1-D*.tif",
                 s3_context=self.s3_context,
                 use_gdal_adressing=True,
             )
@@ -451,7 +451,7 @@ class Sentinel2:
         r2_masks = sorted(
             storage.agnostic_regex(
                 self.product_dir,
-                "/MASKS/*DTF_R2-D*.tif",
+                "*MASKS/*DTF_R2-D*.tif",
                 s3_context=self.s3_context,
                 use_gdal_adressing=True,
             )
