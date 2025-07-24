@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 import rasterio as rio
 import xarray as xr
+from packaging.version import Version
 from dateutil.parser import parse as parse_date
 from scipy import ndimage  # type: ignore
 from shapely import geometry  # type: ignore
@@ -194,17 +195,31 @@ class Sentinel2:
         ) as xml_file:
             tree = ET.parse(xml_file)
             root = tree.getroot()
+            # Parse production software
+            maja_version = root.find(".//PRODUCTION_SOFTWARE")
+            if (maja_version is not None):
+                self.maja_version = Version(maja_version.text.split(" ")[1])
+                print(self.maja_version > Version("4.8.0"))
             # Parse cloud cover
             quality_node = root.find(".//*[@name='CloudPercent']")
             if quality_node is not None:
                 self.cloud_cover = int(quality_node.text)
             # Parse orbit number
-            orbit_node = root.find(".//ORBIT_NUMBER")
-            if orbit_node is not None:
-                self.orbit = int(orbit_node.text)
+            if (self.maja_version <= Version("4.8.0")):
+                orbit_node = root.find(".//*[@type='Orbit']")
+                if orbit_node is not None:
+                    self.orbit = int(orbit_node.text)
                 self.relative_orbit_number = self.compute_relative_orbit_number(
                     self.orbit
                 )
+            else:
+                abs_orbit_node = root.find(".//*[@type='Abs_Orbit']")
+                if abs_orbit_node is not None:
+                    self.orbit = int(abs_orbit_node.text)    
+                orbit_node = root.find(".//*[@type='Orbit']")
+                if orbit_node is not None:
+                    self.relative_orbit_number = int(orbit_node.text)  
+                print(self.orbit, self.relative_orbit_number)              
 
             # Internal parsing function for angular grids
             def parse_angular_grid_node(node):
@@ -613,6 +628,7 @@ class Sentinel2:
         """
         if masks is None:
             masks = self.ALL_MASKS
+        print("hello")
 
         if len(bands):
             img_files = [self.build_band_path(b, band_type) for b in bands]
