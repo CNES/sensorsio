@@ -196,14 +196,30 @@ class Sentinel2:
             tree = ET.parse(xml_file)
             root = tree.getroot()
             # Parse production software
-            maja_version = root.find(".//PRODUCTION_SOFTWARE")
-            if (maja_version is not None):
-                self.maja_version = Version(maja_version.text.split(" ")[1])
-                print(self.maja_version > Version("4.8.0"))
+            prod_ids_to_check = ["PRODUCTION_SOFTWARE", "SOFTWARE_VERSION"]
+            for prod_id in prod_ids_to_check:
+                elem = root.find(f".//{prod_id}")
+                if elem is not None and elem.text:
+                    parts = elem.text.strip().split()
+                    try:
+                        version_str = parts[1] if len(parts) > 1 else parts[0]
+                        self.maja_version = Version(version_str)
+                        break
+                    except (IndexError, ValueError) as e:
+                        raise ValueError(
+                            f"Unable to parse MAJA version from text '{elem.text}' "
+                            "in field '{prod_id}'."
+                        ) from e
+            else:
+                raise KeyError(
+                    f"Fields {prod_ids_to_check} were not found in the XML MTD file."
+                )
+
             # Parse cloud cover
             quality_node = root.find(".//*[@name='CloudPercent']")
             if quality_node is not None:
                 self.cloud_cover = int(quality_node.text)
+                
             # Parse orbit number
             if (self.maja_version <= Version("4.8.0")):
                 orbit_node = root.find(".//*[@type='Orbit']")
@@ -219,7 +235,6 @@ class Sentinel2:
                 orbit_node = root.find(".//*[@type='Orbit']")
                 if orbit_node is not None:
                     self.relative_orbit_number = int(orbit_node.text)  
-                print(self.orbit, self.relative_orbit_number)              
 
             # Internal parsing function for angular grids
             def parse_angular_grid_node(node):
