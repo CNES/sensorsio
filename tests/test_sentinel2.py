@@ -19,7 +19,8 @@ This module contains tests for the Sentinel2 driver
 import datetime
 import os
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Callable
+from packaging.version import Version
 
 import numpy as np
 from affine import Affine
@@ -30,7 +31,7 @@ from rasterio.windows import Window
 from sensorsio import mgrs, sentinel2
 
 
-def get_sentinel2_l2a_theia_folder() -> str:
+def get_sentinel2_l2a_theia_folder_old() -> str:
     """
     Retrieve Sentinel2 folder from env var
     """
@@ -39,6 +40,17 @@ def get_sentinel2_l2a_theia_folder() -> str:
         "sentinel2",
         "l2a_maja",
         "SENTINEL2B_20230219-105857-687_L2A_T31TCJ_C_V3-1",
+    )
+
+def get_sentinel2_l2a_theia_folder_new() -> str:
+    """
+    Retrieve Sentinel2 folder from env var
+    """
+    return os.path.join(
+        os.environ["SENSORSIO_TEST_DATA_PATH"],
+        "sentinel2",
+        "l2a_maja",
+        "SENTINEL2B_20230219-105857-687_L2A_T31TCJ_C_V1-0",
     )
 
 
@@ -71,20 +83,44 @@ def test_find_tile_orbit_pairs():
 
 
 @pytest.mark.requires_test_data
-def test_sentinel2_instantiate_l2a_theia():
+@pytest.mark.parametrize(
+    "folder_func, expected_product_name, expected_version, expected_cloud_cover",
+    [
+        (
+            get_sentinel2_l2a_theia_folder_old,
+            "SENTINEL2B_20230219-105857-687_L2A_T31TCJ_C_V3-1",
+            Version("4.5.5"),
+            11
+        ),
+        (
+            get_sentinel2_l2a_theia_folder_new,
+            "SENTINEL2B_20230219-105857-687_L2A_T31TCJ_C_V1-0",
+            Version("4.10.0"),
+            12
+        ),
+    ],
+)
+def test_sentinel2_instantiate_l2a_theia_versions(
+    folder_func: Callable[..., str], 
+    expected_product_name: str, 
+    expected_version: Version,
+    expected_cloud_cover: int
+):
     """
-    Test sentinel2 class instantiation
+    Test sentinel2 class instantiation on different MAJA versions
     """
-    s2 = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder())
+    folder = folder_func()
+    s2 = sentinel2.Sentinel2(folder)
 
-    assert s2.product_dir == get_sentinel2_l2a_theia_folder()
-    assert s2.product_name == "SENTINEL2B_20230219-105857-687_L2A_T31TCJ_C_V3-1"
+    assert s2.product_dir == folder
+    assert s2.product_name == expected_product_name
     assert s2.date == datetime.date(2023, 2, 19)
     assert s2.time == datetime.time(10, 58, 57)
     assert s2.year == 2023
     assert s2.day_of_year == 50
+    assert s2.maja_version == expected_version
     assert s2.tile == "31TCJ"
-    assert s2.cloud_cover == 11
+    assert s2.cloud_cover == expected_cloud_cover
     assert s2.satellite == sentinel2.Sentinel2.Satellite.S2B
     assert s2.crs == "epsg:32631"
     assert s2.bounds == mgrs.get_bbox_mgrs_tile(s2.tile, latlon=False)
@@ -108,7 +144,6 @@ class ReadAsNumpyParams:
     """
     Class to store read_as_numpy parameters
     """
-
     bands: List[sentinel2.Sentinel2.Band] = field(
         default_factory=lambda: sentinel2.Sentinel2.GROUP_10M
     )
@@ -117,6 +152,7 @@ class ReadAsNumpyParams:
         default_factory=lambda: sentinel2.Sentinel2.ALL_MASKS
     )
     read_atmos: bool = False
+    read_rad_terms: bool = False
     res: sentinel2.Sentinel2.Res = sentinel2.Sentinel2.R1
     scale: float = 10000
     crs: Optional[str] = None
@@ -141,39 +177,105 @@ class ReadAsNumpyParams:
 
 @pytest.mark.requires_test_data
 @pytest.mark.parametrize(
-    "parameters",
+    "folder_func, parameters, expected_n_output",
     [
-        ReadAsNumpyParams(
-            bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220)
+        # Use bounds to set output region, with 10m bands and old version
+        (
+            get_sentinel2_l2a_theia_folder_old,
+            ReadAsNumpyParams(
+                bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220)
+            ),
+            6
         ),
-        # Use bounds to set output region, with 20m bands
-        ReadAsNumpyParams(
-            bands=sentinel2.Sentinel2.GROUP_20M,
-            bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220),
+        # Use bounds to set output region, with 20m bands and old version
+        (
+            get_sentinel2_l2a_theia_folder_old,
+            ReadAsNumpyParams(
+                bands=sentinel2.Sentinel2.GROUP_20M,
+                bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220),
+            ),
+            6
         ),
-        # Use bounds to set output region, with 20m bands and 10 bands
-        ReadAsNumpyParams(
-            bands=sentinel2.Sentinel2.GROUP_10M + sentinel2.Sentinel2.GROUP_20M,
-            bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220),
+        # Use bounds to set output region, with 20m bands and 10 bands and old version
+        (
+            get_sentinel2_l2a_theia_folder_old,
+            ReadAsNumpyParams(
+                bands=sentinel2.Sentinel2.GROUP_10M + sentinel2.Sentinel2.GROUP_20M,
+                bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220),
+            ),
+            6
         ),
-        # Set a different target crs
-        ReadAsNumpyParams(
-            bounds=rio.coords.BoundingBox(499830.0, 6240795.0, 500830.0, 6242795.0),
-            crs="EPSG:2154",
+        # Set a different target crs and old version
+        (
+            get_sentinel2_l2a_theia_folder_old,
+            ReadAsNumpyParams(
+                bounds=rio.coords.BoundingBox(499830.0, 6240795.0, 500830.0, 6242795.0),
+                crs="EPSG:2154",
+            ),
+            6
+        ),
+        # Use bounds to set output region, with 20m bands, new version and correct res
+        (
+            get_sentinel2_l2a_theia_folder_new,
+            ReadAsNumpyParams(
+                bands=sentinel2.Sentinel2.GROUP_20M,
+                bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220),
+                resolution=120,
+                read_rad_terms=True
+            ),
+            7
+        ),
+        # Set a different target crs and new version
+        (
+            get_sentinel2_l2a_theia_folder_new,
+            ReadAsNumpyParams(
+                bounds=rio.coords.BoundingBox(499830.0, 6240795.0, 500830.0, 6242795.0),
+                read_rad_terms=True,
+                crs="EPSG:2154",
+            ),
+            7
         ),
     ],
 )
-def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
+def test_read_as_numpy_xarray(
+    folder_func: Callable[..., str],
+    parameters: ReadAsNumpyParams,
+    expected_n_output: int
+):
     """
     Test the read_as_numpy method
     """
-    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder())
+    s2_dataset = sentinel2.Sentinel2(folder_func())
 
+    # If version is lower than 4.10.0 and read_rad_terms, raise ValueError
+    if (parameters.read_rad_terms and s2_dataset.maja_version < Version("4.10.0")):
+        with pytest.raises(
+            NotImplementedError, 
+            match=f"Radiative terms are not saved by MAJA version {s2_dataset.maja_version}. "
+                    "This feature was added by MAJA version 4.10.0."
+        ):
+            _ = s2_dataset.read_as_numpy(**parameters.__dict__)
+        return
+                
+    # If read_rad_terms and resolution < 120m, raise ValueError
+    if (parameters.read_rad_terms and parameters.resolution<120):
+        with pytest.raises(ValueError, match="Radiative terms can't be downscaled under 120m."):
+            _ = s2_dataset.read_as_numpy(**parameters.__dict__)
+        return
+            
     # Read as numpy part
-    bands_arr, mask_arr, atm_arr, xcoords, ycoords, crs = s2_dataset.read_as_numpy(
-        **parameters.__dict__
-    )
-
+    output = s2_dataset.read_as_numpy(**parameters.__dict__)
+    assert len(output) == expected_n_output
+    bands_arr = output[0]
+    mask_arr = output[1]
+    atm_arr = output[2]
+    if expected_n_output == 7:
+        rad_arr = output[3]
+        xcoords, ycoords, crs = output[4:]
+    else:
+        rad_arr = None
+        xcoords, ycoords, crs = output[3:]
+        
     assert bands_arr.shape == (len(parameters.bands), *parameters.expected_shape())
     assert mask_arr is not None and mask_arr.shape == (
         len(parameters.masks),
@@ -189,6 +291,16 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
     else:
         assert atm_arr is None
 
+    if parameters.read_rad_terms:
+        assert rad_arr is not None and rad_arr.shape == (
+            len(parameters.bands),
+            3,
+            *parameters.expected_shape()
+        )
+    else:
+        if (s2_dataset.maja_version >= Version("4.10.0")):
+            assert rad_arr is None
+
     assert ycoords.shape == (parameters.expected_shape()[0],)
     assert xcoords.shape == (parameters.expected_shape()[1],)
 
@@ -199,7 +311,7 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
 
     # Test read as xarray part
     s2_xr = s2_dataset.read_as_xarray(**parameters.__dict__)
-
+        
     for c in ["t", "x", "y"]:
         assert c in s2_xr.coords
 
@@ -216,6 +328,13 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
             assert atm_band in s2_xr.variables
             assert s2_xr[atm_band].shape == (1, parameters.expected_shape())
 
+    if parameters.read_rad_terms:
+        assert "band" in s2_xr.coords
+        assert s2_xr["band"].shape == (len(parameters.bands),)
+        for rad_prop in ["ALBD", "TDIR", "TDIF"]:
+            assert rad_prop in s2_xr.variables
+            assert s2_xr[rad_prop].shape == (1, len(parameters.bands), *parameters.expected_shape())
+
     assert s2_xr.attrs["tile"] == "31TCJ"
     assert s2_xr.attrs["type"] == parameters.band_type.value
     if parameters.crs is not None:
@@ -225,11 +344,41 @@ def test_read_as_numpy_xarray(parameters: ReadAsNumpyParams):
 
 
 @pytest.mark.requires_test_data
+def test_read_as_numpy_raises_notimplemented_for_old_version():
+    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder_old())
+    parameters = ReadAsNumpyParams(
+        bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220),
+        read_rad_terms=True
+    )
+    with pytest.raises(
+        NotImplementedError, 
+        match="Radiative terms are not saved by MAJA version .*"
+    ):
+        _ = s2_dataset.read_as_numpy(**parameters.__dict__)
+
+
+@pytest.mark.requires_test_data
+def test_read_as_numpy_raises_valueerror_when_downscale_rad_terms():
+    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder_new())
+    parameters = ReadAsNumpyParams(
+        bands=sentinel2.Sentinel2.GROUP_20M,
+        bounds=rio.coords.BoundingBox(300000.0, 4790220.0, 301000, 4792220),
+        read_rad_terms=True,
+        resolution=10,
+    )
+    with pytest.raises(
+        ValueError, 
+        match="Radiative terms can't be downscaled under 120m."
+    ):
+        s2_dataset.read_as_numpy(**parameters.__dict__)
+
+
+@pytest.mark.requires_test_data
 def test_read_incidence_angle_as_numpy():
     """
     Test the function that reads incidence angles
     """
-    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder())
+    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder_old())
 
     even_zenith_angle, odd_zenith_angle, even_azimuth_angle, odd_azimuth_angle = (
         s2_dataset.read_incidence_angles_as_numpy(res=sentinel2.Sentinel2.R2)
@@ -253,7 +402,7 @@ def test_read_solar_angle_as_numpy():
     """
     Test the function that reads solar angles
     """
-    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder())
+    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder_old())
 
     zenith_angle, azimuth_angle = s2_dataset.read_solar_angles_as_numpy(
         res=sentinel2.Sentinel2.R2
@@ -274,7 +423,7 @@ def test_read_solar_angle_with_bounding_box_as_numpy():
     Test the function that reads solar angles with bounding box
     """
     # Open data
-    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder())
+    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder_old())
 
     # Define Bounding Box
     col_off, row_off, width, height = 248, 2256, 2567, 2735
@@ -321,7 +470,7 @@ def test_read_incidence_angle_with_bounding_box_as_numpy():
     Test the function that reads incidence angles with bounding box
     """
     # Open data
-    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder())
+    s2_dataset = sentinel2.Sentinel2(get_sentinel2_l2a_theia_folder_old())
 
     # Define Bounding Box
     col_off, row_off, width, height = 248, 2256, 2567, 2735
@@ -382,7 +531,7 @@ def test_read_incidence_angles_with_zip_file():
     """
     Test that angles for unzip/zip files are the same
     """
-    s2_dataset_path = get_sentinel2_l2a_theia_folder()
+    s2_dataset_path = get_sentinel2_l2a_theia_folder_old()
     s2_dataset = sentinel2.Sentinel2(s2_dataset_path)
     s2_dataset_path_zip = s2_dataset_path + ".zip"
     s2_dataset_zip = sentinel2.Sentinel2(s2_dataset_path_zip)

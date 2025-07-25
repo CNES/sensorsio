@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 import rasterio as rio
 import xarray as xr
+from packaging.version import Version
 from dateutil.parser import parse as parse_date
 from scipy import ndimage  # type: ignore
 from shapely import geometry  # type: ignore
@@ -174,6 +175,9 @@ class Sentinel2:
             # Get crs
             self.crs = dataset.crs
 
+        # Radiative terms
+        self.rad_terms_ide = ["albd", "tdir", "tdif"]
+
         # Init angles
         self.sun_angles = None
         self.incidence_angles = None
@@ -194,17 +198,46 @@ class Sentinel2:
         ) as xml_file:
             tree = ET.parse(xml_file)
             root = tree.getroot()
+            
+            # Parse production software
+            prod_ids_to_check = ["PRODUCTION_SOFTWARE", "SOFTWARE_VERSION"]
+            for prod_id in prod_ids_to_check:
+                elem = root.find(f".//{prod_id}")
+                if elem is not None and elem.text:
+                    parts = elem.text.strip().split()
+                    try:
+                        version_str = parts[1] if len(parts) > 1 else parts[0]
+                        self.maja_version = Version(version_str)
+                        break
+                    except (IndexError, ValueError) as e:
+                        raise ValueError(
+                            f"Unable to parse MAJA version from text '{elem.text}' "
+                            "in field '{prod_id}'."
+                        ) from e
+            else:
+                raise KeyError(
+                    f"Fields {prod_ids_to_check} were not found in the XML MTD file."
+                )
+    
             # Parse cloud cover
             quality_node = root.find(".//*[@name='CloudPercent']")
             if quality_node is not None:
                 self.cloud_cover = int(quality_node.text)
             # Parse orbit number
-            orbit_node = root.find(".//ORBIT_NUMBER")
-            if orbit_node is not None:
-                self.orbit = int(orbit_node.text)
+            if (self.maja_version <= Version("4.8.0")):
+                orbit_node = root.find(".//*[@type='Orbit']")
+                if orbit_node is not None:
+                    self.orbit = int(orbit_node.text)
                 self.relative_orbit_number = self.compute_relative_orbit_number(
                     self.orbit
                 )
+            else:
+                abs_orbit_node = root.find(".//*[@type='Abs_Orbit']")
+                if abs_orbit_node is not None:
+                    self.orbit = int(abs_orbit_node.text)    
+                orbit_node = root.find(".//*[@type='Orbit']")
+                if orbit_node is not None:
+                    self.relative_orbit_number = int(orbit_node.text)  
 
             # Internal parsing function for angular grids
             def parse_angular_grid_node(node):
@@ -535,10 +568,7 @@ class Sentinel2:
 
     def build_atmos_path(self, resolution: Res = R1) -> str:
         """
-        Build path to a file containing WVC and AOT bands for product
-
-        :param atmos: The band type to build path for Sentinel 2
-        atmosphere bands
+        Build path to a file containing WVC and AOT bands for product.
 
         :param resolution: chosen resolution
 
@@ -559,12 +589,42 @@ class Sentinel2:
             )
         return atb_path[0]
 
+    def _support_radiative_terms(self) -> bool:
+        if (self.maja_version < Version("4.10.0")):
+            return False
+        return True
+
+    def build_radiative_terms_path(self) -> List[str]:
+        """
+        Build path to the files containing tdir_up, tdif_up and sph_alb for 
+        product.
+        
+        :return: The paths to the radiative terms path.
+        """
+        paths: List[str] = []
+        for ide in self.rad_terms_ide:
+            atb_path = storage.agnostic_regex(
+                self.product_dir,
+                f"DATA/{ide}_image.tif",
+                s3_context=self.s3_context,
+                use_gdal_adressing=True,
+            )
+            # Raise
+            if len(atb_path) == 0:
+                raise FileNotFoundError(
+                    f"Could not find radiative term {ide} \
+                    in product directory {self.product_dir}"
+                )
+            paths.append(atb_path[0])
+        return paths
+    
     def read_as_numpy(
         self,
         bands: List[Band],
         band_type: BandType = FRE,
         masks: Optional[List[Mask]] = None,
         read_atmos: bool = False,
+        read_rad_terms: bool = False,
         res: Res = Res.R1,
         scale: float = 10000,
         crs: Optional[str] = None,
@@ -575,6 +635,7 @@ class Sentinel2:
         dtype: np.dtype = np.dtype("float32"),
     ) -> Tuple[
         np.ndarray,
+        Optional[np.ndarray],
         Optional[np.ndarray],
         Optional[np.ndarray],
         np.ndarray,
@@ -599,6 +660,8 @@ class Sentinel2:
         image bands, will use a WarpedVRT
         :param algorithm: The resampling algorithm to be used if WarpedVRT
         :param dtype: dtype of the output Tensor
+        :param read_atmos: read the AOT/WVC data for the resolution
+        :param read_rad_terms: read the radiative terms for the resolution
 
         :return: The image pixels as a np.ndarray of shape [bands,
         width, height],
@@ -613,6 +676,15 @@ class Sentinel2:
         """
         if masks is None:
             masks = self.ALL_MASKS
+
+        if not(self._support_radiative_terms()) and read_rad_terms:
+            raise NotImplementedError(
+                f"Radiative terms are not saved by MAJA version {self.maja_version}. "
+                "This feature was added by MAJA version 4.10.0."
+            )
+
+        if (read_rad_terms and resolution < 120):
+            raise ValueError("Radiative terms can't be downscaled under 120m.")
 
         if len(bands):
             img_files = [self.build_band_path(b, band_type) for b in bands]
@@ -629,9 +701,9 @@ class Sentinel2:
                 dtype=dtype,
                 scale=scale,
             )
-
             # Skip first dimension
             np_arr = np_arr[0, ...]
+            
         # Read masks if needed
         np_arr_msk = None
         if len(masks) != 0:
@@ -651,6 +723,7 @@ class Sentinel2:
             )
             # Skip first dimension
             np_arr_msk = np_arr_msk[0, ...]
+            
         # Read atmosphere band
         np_arr_atm = None
         if read_atmos:
@@ -671,9 +744,33 @@ class Sentinel2:
             # Normalize
             np_arr_atm = np_arr_atm[:, 0, ...]
             np_arr_atm[1] = np_arr_atm[1] / 200
+            
+        # Read radiative terms
+        np_arr_rad = None
+        if read_rad_terms:
+            rad_files = self.build_radiative_terms_path()
+            np_arr_rad, _, _, _ = regulargrid.read_as_numpy(
+                rad_files,
+                crs=crs,
+                resolution=resolution,
+                offsets=self.offsets,
+                output_no_data_value=no_data_value,
+                input_no_data_value=-10000,
+                bounds=bounds,
+                algorithm=algorithm,
+                separate=True,
+                dtype=np.dtype("float32"),
+                scale=None,
+            )
+            ALL_BANDS = [band.value for band in self.Band]
+            band_idxs = [ALL_BANDS.index(band.value)+1 for band in bands]
+            np_arr_rad = np_arr_rad[band_idxs]
 
         # Return plain numpy array
-        return np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, out_crs
+        if not (self._support_radiative_terms()):
+            return np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, out_crs
+        
+        return np_arr, np_arr_msk, np_arr_atm, np_arr_rad, xcoords, ycoords, out_crs
 
     def read_as_xarray(
         self,
@@ -682,6 +779,7 @@ class Sentinel2:
         masks: Optional[List[Mask]] = None,
         res: Res = Res.R1,
         read_atmos: bool = False,
+        read_rad_terms: bool = False,
         scale: float = 10000,
         crs: Optional[str] = None,
         resolution: float = 10,
@@ -710,17 +808,21 @@ class Sentinel2:
         image bands, will use a WarpedVRT
         :param algorithm: The resampling algorithm to be used if WarpedVRT
         :param dtype: dtype of the output Tensor
+        :param read_atmos: read the AOT/WVC data for the resolution
+        :param read_rad_terms: read the radiative terms for the resolution
+        
         :return: The image pixels as a np.ndarray of shape [bands, width, height]
 
         """
         if masks is None:
             masks = self.ALL_MASKS
 
-        np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs = self.read_as_numpy(
+        data = self.read_as_numpy(
             bands,
             band_type,
             masks,
             read_atmos,
+            read_rad_terms,
             res,
             scale,
             crs,
@@ -730,6 +832,12 @@ class Sentinel2:
             algorithm,
             dtype,
         )
+        
+        if self._support_radiative_terms():  
+            np_arr, np_arr_msk, np_arr_atm, np_arr_rad, xcoords, ycoords, crs = data
+        else:
+            np_arr_rad = None
+            np_arr, np_arr_msk, np_arr_atm, xcoords, ycoords, crs = data
 
         variables = {}
         for i, band in enumerate(bands):
@@ -740,10 +848,19 @@ class Sentinel2:
         if np_arr_atm is not None:
             variables["WCV"] = (["t", "y", "x"], np_arr_atm[None, 0, ...])
             variables["AOT"] = (["t", "y", "x"], np_arr_atm[None, 1, ...])
+        if np_arr_rad is not None:
+            for j, ide in enumerate(self.rad_terms_ide):
+                data = np.stack([np_arr_rad[i, j] for i in range(len(bands))])
+                variables[ide.upper()] = (["t", "band", "y", "x"], data[None])
+
+        coords = {"t": [self.date], "x": xcoords, "y": ycoords}
+        if np_arr_rad is not None:
+            coords["band"] = [b.value for b in bands]
+
 
         xarr = xr.Dataset(
             variables,
-            coords={"t": [self.date], "x": xcoords, "y": ycoords},
+            coords=coords,
             attrs={"tile": self.tile, "type": band_type.value, "crs": crs},
         )
         return xarr
