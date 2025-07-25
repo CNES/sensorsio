@@ -601,7 +601,7 @@ class Sentinel2:
         
         :return: The paths to the radiative terms path.
         """
-        if self._support_radiative_terms():
+        if not(self._support_radiative_terms()):
             raise NotImplementedError(
                 f"Radiative terms are not saved by MAJA version {self.maja_version}. "
                 "This feature was added by MAJA version 4.10.0."
@@ -761,7 +761,8 @@ class Sentinel2:
                 dtype=np.dtype("float32"),
                 scale=None,
             )
-            band_idxs = [int(band.value[1:]) - 1 for band in bands]
+            ALL_BANDS = [band.value for band in self.Band]
+            band_idxs = [ALL_BANDS.index(band.value)+1 for band in bands]
             np_arr_rad = np_arr_rad[band_idxs]
 
         # Return plain numpy array
