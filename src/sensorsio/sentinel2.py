@@ -601,11 +601,6 @@ class Sentinel2:
         
         :return: The paths to the radiative terms path.
         """
-        if not(self._support_radiative_terms()):
-            raise NotImplementedError(
-                f"Radiative terms are not saved by MAJA version {self.maja_version}. "
-                "This feature was added by MAJA version 4.10.0."
-            )
         paths: List[str] = []
         for ide in self.rad_terms_ide:
             atb_path = storage.agnostic_regex(
@@ -681,7 +676,13 @@ class Sentinel2:
         """
         if masks is None:
             masks = self.ALL_MASKS
-            
+
+        if not(self._support_radiative_terms()) and read_rad_terms:
+            raise NotImplementedError(
+                f"Radiative terms are not saved by MAJA version {self.maja_version}. "
+                "This feature was added by MAJA version 4.10.0."
+            )
+
         if (read_rad_terms and resolution < 120):
             raise ValueError("Radiative terms can't be downscaled under 120m.")
 
